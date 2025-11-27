@@ -1,0 +1,756 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <base target="_top">
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Lab Check-In</title>
+  
+  <!-- Bootstrap 5 CSS -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  <!-- Bootstrap Icons -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css" rel="stylesheet">
+  
+  <style>
+    body {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    }
+    
+    .main-container {
+      max-width: 500px;
+      margin: 20px auto;
+      padding: 20px;
+    }
+    
+    .card {
+      border-radius: 20px;
+      box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+      border: none;
+      margin-bottom: 20px;
+    }
+    
+    .card-header {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      border-radius: 20px 20px 0 0 !important;
+      padding: 25px;
+      text-align: center;
+      border: none;
+    }
+    
+    .card-header h3 {
+      margin: 0;
+      font-weight: 600;
+    }
+    
+    .card-body {
+      padding: 30px;
+    }
+    
+    .btn-custom {
+      padding: 15px;
+      font-size: 1.1rem;
+      font-weight: 600;
+      border-radius: 12px;
+      width: 100%;
+      margin-top: 10px;
+      transition: all 0.3s ease;
+    }
+    
+    .btn-checkin {
+      background: #10b981;
+      border: none;
+      color: white;
+    }
+    
+    .btn-checkin:hover {
+      background: #059669;
+      transform: translateY(-2px);
+      box-shadow: 0 5px 15px rgba(16, 185, 129, 0.3);
+    }
+    
+    .btn-checkout {
+      background: #ef4444;
+      border: none;
+      color: white;
+    }
+    
+    .btn-checkout:hover {
+      background: #dc2626;
+      transform: translateY(-2px);
+      box-shadow: 0 5px 15px rgba(239, 68, 68, 0.3);
+    }
+    
+    .btn-custom:disabled {
+      background: #9ca3af !important;
+      cursor: not-allowed !important;
+      opacity: 0.5;
+      transform: none !important;
+      box-shadow: none !important;
+    }
+    
+    .form-control {
+      padding: 15px;
+      font-size: 1rem;
+      border-radius: 10px;
+      border: 2px solid #e5e7eb;
+    }
+    
+    .form-control:focus {
+      border-color: #667eea;
+      box-shadow: 0 0 0 0.2rem rgba(102, 126, 234, 0.25);
+    }
+    
+    .alert {
+      border-radius: 12px;
+      padding: 15px;
+      margin-top: 15px;
+      border: none;
+    }
+    
+    .info-box {
+      background: #f3f4f6;
+      padding: 15px;
+      border-radius: 10px;
+      margin-top: 15px;
+    }
+    
+    .info-box p {
+      margin: 5px 0;
+      color: #4b5563;
+    }
+    
+    .spinner-border {
+      width: 1.5rem;
+      height: 1.5rem;
+    }
+    
+    .icon-large {
+      font-size: 3rem;
+      margin-bottom: 15px;
+    }
+    
+    .user-type-toggle {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 20px;
+    }
+    
+    .user-type-btn {
+      flex: 1;
+      padding: 15px;
+      border: 2px solid #e5e7eb;
+      border-radius: 12px;
+      background: white;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      text-align: center;
+      font-weight: 600;
+    }
+    
+    .user-type-btn:hover {
+      border-color: #667eea;
+      transform: translateY(-2px);
+    }
+    
+    .user-type-btn.active {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      border-color: transparent;
+    }
+    
+    .user-type-btn i {
+      font-size: 2rem;
+      display: block;
+      margin-bottom: 5px;
+    }
+    
+    .footer-text {
+      text-align: center;
+      color: white;
+      margin-top: 20px;
+      font-size: 0.9rem;
+    }
+  </style>
+</head>
+<body>
+  <div class="main-container">
+    <!-- Header Card -->
+    <div class="card">
+      <div class="card-header">
+        <i class="bi bi-building"></i>
+        <h3>Lab Check-In System</h3>
+        <p style="margin: 5px 0 0 0; font-size: 0.9rem; opacity: 0.9;">
+          <i class="bi bi-calendar3"></i> <span id="currentDate"></span>
+        </p>
+      </div>
+    </div>
+
+    <!-- QR Code Status Card -->
+    <div class="card" id="qrStatusCard">
+      <div class="card-body text-center">
+        <div class="spinner-border text-primary" role="status">
+          <span class="visually-hidden">Loading...</span>
+        </div>
+        <p class="mt-3">Verifying access...</p>
+      </div>
+    </div>
+
+    <!-- Information Card for Invalid Access -->
+    <div class="card" id="infoCard" style="display: none;">
+      <div class="card-body text-center" style="padding: 30px;">
+        <i class="bi bi-qr-code-scan" style="font-size: 4rem; color: #667eea; margin-bottom: 15px;"></i>
+        <h5 style="color: #374151; margin-bottom: 15px;">How to Check In</h5>
+        <div style="text-align: left; background: #f3f4f6; padding: 20px; border-radius: 10px; margin-bottom: 20px;">
+          <p style="margin-bottom: 10px;"><strong>Step 1:</strong> Go to the lab entrance</p>
+          <p style="margin-bottom: 10px;"><strong>Step 2:</strong> Find the daily QR code posted on the wall</p>
+          <p style="margin-bottom: 10px;"><strong>Step 3:</strong> Use your phone camera to scan the QR code</p>
+          <p style="margin-bottom: 0;"><strong>Step 4:</strong> The check-in page will open automatically</p>
+        </div>
+        <div class="alert alert-warning" style="margin-bottom: 0;">
+          <i class="bi bi-exclamation-triangle"></i> 
+          <strong>Important:</strong> You must scan today's QR code from the lab to check in.
+        </div>
+      </div>
+    </div>
+
+    <!-- Check-In Form Card -->
+    <div class="card" id="checkInCard" style="display: none;">
+      <div class="card-body">
+        <!-- User Type Toggle -->
+        <div class="user-type-toggle">
+          <div class="user-type-btn active" id="staffBtn" onclick="switchToStaff()">
+            <i class="bi bi-person-badge"></i>
+            <div>Staff Member</div>
+          </div>
+          <div class="user-type-btn" id="guestBtn" onclick="switchToGuest()">
+            <i class="bi bi-person"></i>
+            <div>Guest</div>
+          </div>
+        </div>
+        
+        <!-- Staff Form -->
+        <div id="staffForm" style="display: block;">
+          <div class="text-center mb-4">
+            <i class="bi bi-person-badge icon-large text-primary"></i>
+            <h5>Staff Member Check-In</h5>
+          </div>
+          
+          <div class="mb-3">
+            <label for="staffId" class="form-label">Staff ID</label>
+            <input 
+              type="text" 
+              class="form-control" 
+              id="staffId" 
+              placeholder="Enter your staff ID"
+              autocomplete="off"
+            >
+          </div>
+          
+          <button type="button" class="btn btn-custom" id="staffLoginBtn" style="background: #6366f1; border: none;">
+            <i class="bi bi-person-check"></i> Staff Login
+          </button>
+          
+          <div id="staffStatusInfo" class="info-box" style="display: none;">
+            <p><strong>Staff ID:</strong> <span id="displayStaffId"></span></p>
+            <p><strong>Name:</strong> <span id="staffName"></span></p>
+            <p><strong>Status:</strong> <span id="staffStatus"></span></p>
+            <p><strong>Check-In Time:</strong> <span id="staffCheckInTime"></span></p>
+          </div>
+          
+          <div id="staffAlertBox"></div>
+          
+          <div id="staffActionButtons" style="display: none;">
+            <button type="button" class="btn btn-custom btn-checkin" id="staffCheckInBtn">
+              <i class="bi bi-box-arrow-in-right"></i> Check In
+            </button>
+            
+            <button type="button" class="btn btn-custom btn-checkout" id="staffCheckOutBtn">
+              <i class="bi bi-box-arrow-left"></i> Check Out
+            </button>
+          </div>
+        </div>
+        
+        <!-- Guest Form -->
+        <div id="guestForm" style="display: none;">
+          <div class="text-center mb-4">
+            <i class="bi bi-person icon-large text-success"></i>
+            <h5>Guest Check-In</h5>
+            <p class="text-muted">Enter your name to check in/out</p>
+          </div>
+          
+          <div class="mb-3">
+            <label for="guestFirstName" class="form-label">First Name</label>
+            <input 
+              type="text" 
+              class="form-control" 
+              id="guestFirstName" 
+              placeholder="Enter your first name"
+              autocomplete="off"
+            >
+          </div>
+          
+          <div class="mb-3">
+            <label for="guestLastName" class="form-label">Last Name</label>
+            <input 
+              type="text" 
+              class="form-control" 
+              id="guestLastName" 
+              placeholder="Enter your last name"
+              autocomplete="off"
+            >
+          </div>
+          
+          <button type="button" class="btn btn-custom" id="guestLoginBtn" style="background: #6366f1; border: none;">
+            <i class="bi bi-person-check"></i> Guest Login
+          </button>
+          
+          <div id="guestStatusInfo" class="info-box" style="display: none;">
+            <p><strong>Name:</strong> <span id="guestName"></span></p>
+            <p><strong>Status:</strong> <span id="guestStatus"></span></p>
+            <p><strong>Check-In Time:</strong> <span id="guestCheckInTime"></span></p>
+          </div>
+          
+          <div id="guestAlertBox"></div>
+          
+          <div id="guestActionButtons" style="display: none;">
+            <button type="button" class="btn btn-custom btn-checkin" id="guestCheckInBtn">
+              <i class="bi bi-box-arrow-in-right"></i> Check In
+            </button>
+            
+            <button type="button" class="btn btn-custom btn-checkout" id="guestCheckOutBtn">
+              <i class="bi bi-box-arrow-left"></i> Check Out
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="footer-text">
+      <i class="bi bi-shield-check"></i> Secure Lab Attendance Tracking
+    </div>
+  </div>
+
+  <!-- Bootstrap 5 JS -->
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+  
+  <script>
+    // Get QR token from URL
+    const urlParams = new URLSearchParams(window.location.search);
+    const qrToken = urlParams.get('token') || '<?= qrToken ?>';
+    
+    let currentUserType = 'staff'; // 'staff' or 'guest'
+    let currentStaffId = '';
+    let currentGuestFirstName = '';
+    let currentGuestLastName = '';
+    let isCheckedIn = false;
+    
+    // Display current date
+    document.getElementById('currentDate').textContent = new Date().toLocaleDateString('en-US', {
+      weekday: 'long',
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric'
+    });
+    
+    // Initialize
+    window.onload = function() {
+      validateQRCode();
+      setupEventListeners();
+    };
+    
+    function setupEventListeners() {
+      // Staff login
+      document.getElementById('staffLoginBtn').addEventListener('click', handleStaffLogin);
+      document.getElementById('staffCheckInBtn').addEventListener('click', handleStaffCheckIn);
+      document.getElementById('staffCheckOutBtn').addEventListener('click', handleStaffCheckOut);
+      
+      // Guest login
+      document.getElementById('guestLoginBtn').addEventListener('click', handleGuestLogin);
+      document.getElementById('guestCheckInBtn').addEventListener('click', handleGuestCheckIn);
+      document.getElementById('guestCheckOutBtn').addEventListener('click', handleGuestCheckOut);
+      
+      // Enter key handlers
+      document.getElementById('staffId').addEventListener('keypress', function(e) {
+        if (e.key === 'Enter') handleStaffLogin();
+      });
+      document.getElementById('guestLastName').addEventListener('keypress', function(e) {
+        if (e.key === 'Enter') handleGuestLogin();
+      });
+    }
+    
+    // Switch between Staff and Guest
+    function switchToStaff() {
+      currentUserType = 'staff';
+      document.getElementById('staffBtn').classList.add('active');
+      document.getElementById('guestBtn').classList.remove('active');
+      document.getElementById('staffForm').style.display = 'block';
+      document.getElementById('guestForm').style.display = 'none';
+      resetForms();
+    }
+    
+    function switchToGuest() {
+      currentUserType = 'guest';
+      document.getElementById('guestBtn').classList.add('active');
+      document.getElementById('staffBtn').classList.remove('active');
+      document.getElementById('guestForm').style.display = 'block';
+      document.getElementById('staffForm').style.display = 'none';
+      resetForms();
+    }
+    
+    function resetForms() {
+      // Reset staff form
+      document.getElementById('staffId').value = '';
+      document.getElementById('staffStatusInfo').style.display = 'none';
+      document.getElementById('staffActionButtons').style.display = 'none';
+      document.getElementById('staffAlertBox').innerHTML = '';
+      document.getElementById('staffLoginBtn').style.display = 'block';
+      
+      // Reset guest form
+      document.getElementById('guestFirstName').value = '';
+      document.getElementById('guestLastName').value = '';
+      document.getElementById('guestStatusInfo').style.display = 'none';
+      document.getElementById('guestActionButtons').style.display = 'none';
+      document.getElementById('guestAlertBox').innerHTML = '';
+      document.getElementById('guestLoginBtn').style.display = 'block';
+      
+      currentStaffId = '';
+      currentGuestFirstName = '';
+      currentGuestLastName = '';
+      isCheckedIn = false;
+    }
+    
+    function validateQRCode() {
+      google.script.run
+        .withSuccessHandler(handleQRValidation)
+        .withFailureHandler(handleError)
+        .validateQRToken(qrToken);
+    }
+    
+    function handleQRValidation(result) {
+      const qrCard = document.getElementById('qrStatusCard');
+      const checkInCard = document.getElementById('checkInCard');
+      const infoCard = document.getElementById('infoCard');
+      
+      if (result.valid) {
+        qrCard.innerHTML = `
+          <div class="card-body text-center">
+            <i class="bi bi-check-circle-fill icon-large text-success"></i>
+            <h5 class="text-success">Access Verified!</h5>
+            <p class="text-muted">Select Staff or Guest to continue</p>
+          </div>
+        `;
+        checkInCard.style.display = 'block';
+        infoCard.style.display = 'none';
+      } else {
+        qrCard.style.display = 'none';
+        infoCard.style.display = 'block';
+        checkInCard.style.display = 'none';
+      }
+    }
+    
+    // ===== STAFF HANDLERS =====
+    function handleStaffLogin() {
+      const staffId = document.getElementById('staffId').value.trim();
+      const loginBtn = document.getElementById('staffLoginBtn');
+      
+      if (!staffId) {
+        showStaffAlert('warning', 'Please enter your Staff ID');
+        return;
+      }
+      
+      currentStaffId = staffId;
+      loginBtn.disabled = true;
+      loginBtn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Verifying...';
+      
+      google.script.run
+        .withSuccessHandler(handleStaffLoginSuccess)
+        .withFailureHandler(handleStaffLoginError)
+        .verifyStaffAndGetStatus(staffId);
+    }
+    
+    function handleStaffLoginSuccess(result) {
+      const loginBtn = document.getElementById('staffLoginBtn');
+      
+      loginBtn.disabled = false;
+      loginBtn.innerHTML = '<i class="bi bi-person-check"></i> Staff Login';
+      loginBtn.style.display = 'block';
+      
+      if (!result.success) {
+        showStaffAlert('danger', result.message);
+        return;
+      }
+      
+      document.getElementById('displayStaffId').textContent = result.staff.id;
+      document.getElementById('staffName').textContent = result.staff.name;
+      
+      if (result.isCheckedIn) {
+        document.getElementById('staffStatus').innerHTML = '<span class="badge bg-success">Checked In</span>';
+        document.getElementById('staffCheckInTime').textContent = result.checkInTime;
+        isCheckedIn = true;
+      } else if (result.alreadyCompletedToday) {
+        document.getElementById('staffStatus').innerHTML = '<span class="badge bg-info">Completed</span>';
+        document.getElementById('staffCheckInTime').textContent = result.checkInTime + ' (Checked out at ' + result.checkOutTime + ')';
+        isCheckedIn = false;
+      } else {
+        document.getElementById('staffStatus').innerHTML = '<span class="badge bg-secondary">Not Checked In</span>';
+        document.getElementById('staffCheckInTime').textContent = 'Not checked in today';
+        isCheckedIn = false;
+      }
+      
+      document.getElementById('staffStatusInfo').style.display = 'block';
+      document.getElementById('staffActionButtons').style.display = 'block';
+      
+      updateStaffButtonStates(result.alreadyCompletedToday);
+      
+      if (result.isCheckedIn) {
+        showStaffAlert('info', '✓ You are checked in. Click "Check Out" when leaving.');
+      } else if (result.alreadyCompletedToday) {
+        showStaffAlert('success', '✓ You completed your check-in/out for today.');
+      } else {
+        showStaffAlert('info', '✓ Ready to check in.');
+      }
+    }
+    
+    function handleStaffLoginError(error) {
+      const loginBtn = document.getElementById('staffLoginBtn');
+      loginBtn.disabled = false;
+      loginBtn.innerHTML = '<i class="bi bi-person-check"></i> Staff Login';
+      showStaffAlert('danger', 'Error: ' + error.message);
+    }
+    
+    function updateStaffButtonStates(alreadyCompleted = false) {
+      const checkInBtn = document.getElementById('staffCheckInBtn');
+      const checkOutBtn = document.getElementById('staffCheckOutBtn');
+      
+      if (alreadyCompleted) {
+        checkInBtn.disabled = true;
+        checkOutBtn.disabled = true;
+      } else if (isCheckedIn) {
+        checkInBtn.disabled = true;
+        checkOutBtn.disabled = false;
+      } else {
+        checkInBtn.disabled = false;
+        checkOutBtn.disabled = true;
+      }
+    }
+    
+    function handleStaffCheckIn() {
+      const checkInBtn = document.getElementById('staffCheckInBtn');
+      
+      checkInBtn.disabled = true;
+      checkInBtn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Checking In...';
+      
+      google.script.run
+        .withSuccessHandler(function(result) {
+          checkInBtn.disabled = false;
+          checkInBtn.innerHTML = '<i class="bi bi-box-arrow-in-right"></i> Check In';
+          
+          if (result.success) {
+            showStaffAlert('success', result.message);
+            setTimeout(() => resetForms(), 3000);
+          } else {
+            showStaffAlert('danger', result.message);
+          }
+        })
+        .withFailureHandler(handleStaffLoginError)
+        .checkIn(currentStaffId, qrToken);
+    }
+    
+    function handleStaffCheckOut() {
+      const checkOutBtn = document.getElementById('staffCheckOutBtn');
+      
+      checkOutBtn.disabled = true;
+      checkOutBtn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Checking Out...';
+      
+      google.script.run
+        .withSuccessHandler(function(result) {
+          checkOutBtn.disabled = false;
+          checkOutBtn.innerHTML = '<i class="bi bi-box-arrow-left"></i> Check Out';
+          
+          if (result.success) {
+            showStaffAlert('success', result.message);
+            setTimeout(() => resetForms(), 3000);
+          } else {
+            showStaffAlert('danger', result.message);
+          }
+        })
+        .withFailureHandler(handleStaffLoginError)
+        .checkOut(currentStaffId);
+    }
+    
+    function showStaffAlert(type, message) {
+      const alertBox = document.getElementById('staffAlertBox');
+      const iconMap = {
+        success: 'check-circle-fill',
+        danger: 'x-circle-fill',
+        warning: 'exclamation-triangle-fill',
+        info: 'info-circle-fill'
+      };
+      
+      alertBox.innerHTML = `
+        <div class="alert alert-${type}" role="alert">
+          <i class="bi bi-${iconMap[type]}"></i> ${message}
+        </div>
+      `;
+    }
+    
+    // ===== GUEST HANDLERS =====
+    function handleGuestLogin() {
+      const firstName = document.getElementById('guestFirstName').value.trim();
+      const lastName = document.getElementById('guestLastName').value.trim();
+      const loginBtn = document.getElementById('guestLoginBtn');
+      
+      if (!firstName || !lastName) {
+        showGuestAlert('warning', 'Please enter both first and last name');
+        return;
+      }
+      
+      currentGuestFirstName = firstName;
+      currentGuestLastName = lastName;
+      loginBtn.disabled = true;
+      loginBtn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Verifying...';
+      
+      google.script.run
+        .withSuccessHandler(handleGuestLoginSuccess)
+        .withFailureHandler(handleGuestLoginError)
+        .verifyGuestAndGetStatus(firstName, lastName);
+    }
+    
+    function handleGuestLoginSuccess(result) {
+      const loginBtn = document.getElementById('guestLoginBtn');
+      
+      loginBtn.disabled = false;
+      loginBtn.innerHTML = '<i class="bi bi-person-check"></i> Guest Login';
+      loginBtn.style.display = 'block';
+      
+      if (!result.success) {
+        showGuestAlert('danger', result.message);
+        return;
+      }
+      
+      document.getElementById('guestName').textContent = result.guestName;
+      
+      if (result.isCheckedIn) {
+        document.getElementById('guestStatus').innerHTML = '<span class="badge bg-success">Checked In</span>';
+        document.getElementById('guestCheckInTime').textContent = result.checkInTime;
+        isCheckedIn = true;
+      } else if (result.alreadyCompletedToday) {
+        document.getElementById('guestStatus').innerHTML = '<span class="badge bg-info">Completed</span>';
+        document.getElementById('guestCheckInTime').textContent = result.checkInTime + ' (Checked out at ' + result.checkOutTime + ')';
+        isCheckedIn = false;
+      } else {
+        document.getElementById('guestStatus').innerHTML = '<span class="badge bg-secondary">Not Checked In</span>';
+        document.getElementById('guestCheckInTime').textContent = 'Not checked in today';
+        isCheckedIn = false;
+      }
+      
+      document.getElementById('guestStatusInfo').style.display = 'block';
+      document.getElementById('guestActionButtons').style.display = 'block';
+      
+      updateGuestButtonStates(result.alreadyCompletedToday);
+      
+      if (result.isCheckedIn) {
+        showGuestAlert('info', '✓ You are checked in. Click "Check Out" when leaving.');
+      } else if (result.alreadyCompletedToday) {
+        showGuestAlert('success', '✓ You completed your check-in/out for today.');
+      } else {
+        showGuestAlert('info', '✓ Welcome! Ready to check in.');
+      }
+    }
+    
+    function handleGuestLoginError(error) {
+      const loginBtn = document.getElementById('guestLoginBtn');
+      loginBtn.disabled = false;
+      loginBtn.innerHTML = '<i class="bi bi-person-check"></i> Guest Login';
+      showGuestAlert('danger', 'Error: ' + error.message);
+    }
+    
+    function updateGuestButtonStates(alreadyCompleted = false) {
+      const checkInBtn = document.getElementById('guestCheckInBtn');
+      const checkOutBtn = document.getElementById('guestCheckOutBtn');
+      
+      if (alreadyCompleted) {
+        checkInBtn.disabled = true;
+        checkOutBtn.disabled = true;
+      } else if (isCheckedIn) {
+        checkInBtn.disabled = true;
+        checkOutBtn.disabled = false;
+      } else {
+        checkInBtn.disabled = false;
+        checkOutBtn.disabled = true;
+      }
+    }
+    
+    function handleGuestCheckIn() {
+      const checkInBtn = document.getElementById('guestCheckInBtn');
+      
+      checkInBtn.disabled = true;
+      checkInBtn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Checking In...';
+      
+      google.script.run
+        .withSuccessHandler(function(result) {
+          checkInBtn.disabled = false;
+          checkInBtn.innerHTML = '<i class="bi bi-box-arrow-in-right"></i> Check In';
+          
+          if (result.success) {
+            showGuestAlert('success', result.message);
+            setTimeout(() => resetForms(), 3000);
+          } else {
+            showGuestAlert('danger', result.message);
+          }
+        })
+        .withFailureHandler(handleGuestLoginError)
+        .guestCheckIn(currentGuestFirstName, currentGuestLastName, qrToken);
+    }
+    
+    function handleGuestCheckOut() {
+      const checkOutBtn = document.getElementById('guestCheckOutBtn');
+      
+      checkOutBtn.disabled = true;
+      checkOutBtn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Checking Out...';
+      
+      google.script.run
+        .withSuccessHandler(function(result) {
+          checkOutBtn.disabled = false;
+          checkOutBtn.innerHTML = '<i class="bi bi-box-arrow-left"></i> Check Out';
+          
+          if (result.success) {
+            showGuestAlert('success', result.message);
+            setTimeout(() => resetForms(), 3000);
+          } else {
+            showGuestAlert('danger', result.message);
+          }
+        })
+        .withFailureHandler(handleGuestLoginError)
+        .guestCheckOut(currentGuestFirstName, currentGuestLastName);
+    }
+    
+    function showGuestAlert(type, message) {
+      const alertBox = document.getElementById('guestAlertBox');
+      const iconMap = {
+        success: 'check-circle-fill',
+        danger: 'x-circle-fill',
+        warning: 'exclamation-triangle-fill',
+        info: 'info-circle-fill'
+      };
+      
+      alertBox.innerHTML = `
+        <div class="alert alert-${type}" role="alert">
+          <i class="bi bi-${iconMap[type]}"></i> ${message}
+        </div>
+      `;
+    }
+    
+    function handleError(error) {
+      if (currentUserType === 'staff') {
+        showStaffAlert('danger', 'Error: ' + error.message);
+      } else {
+        showGuestAlert('danger', 'Error: ' + error.message);
+      }
+    }
+  </script>
+</body>
+</html>

@@ -1,0 +1,444 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <base target="_top">
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <title>Lab QR Code Display</title>
+  
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    
+    body {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      padding: 20px;
+    }
+    
+    .display-container {
+      background: white;
+      border-radius: 30px;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+      padding: 60px;
+      text-align: center;
+      max-width: 800px;
+      width: 100%;
+    }
+    
+    .header {
+      margin-bottom: 40px;
+    }
+    
+    .header h1 {
+      color: #667eea;
+      font-size: 3rem;
+      margin-bottom: 10px;
+      font-weight: 700;
+    }
+    
+    .header p {
+      color: #6b7280;
+      font-size: 1.3rem;
+    }
+    
+    .qr-container {
+      background: #f9fafb;
+      padding: 40px;
+      border-radius: 20px;
+      margin: 40px 0;
+      position: relative;
+      min-height: 450px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    
+    .qr-code {
+      max-width: 400px;
+      width: 100%;
+      height: auto;
+      border: 10px solid white;
+      border-radius: 15px;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+    }
+    
+    .loading {
+      text-align: center;
+    }
+    
+    .spinner {
+      border: 8px solid #f3f4f6;
+      border-top: 8px solid #667eea;
+      border-radius: 50%;
+      width: 80px;
+      height: 80px;
+      animation: spin 1s linear infinite;
+      margin: 0 auto 20px;
+    }
+    
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+    
+    .datetime-info {
+      margin-top: 40px;
+      padding: 30px;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      border-radius: 15px;
+      color: white;
+    }
+    
+    .date-display {
+      font-size: 2rem;
+      font-weight: 700;
+      margin-bottom: 10px;
+    }
+    
+    .time-display {
+      font-size: 3.5rem;
+      font-weight: 700;
+      font-variant-numeric: tabular-nums;
+    }
+    
+    .instructions {
+      margin-top: 30px;
+      padding: 25px;
+      background: #fef3c7;
+      border-radius: 15px;
+      border-left: 5px solid #f59e0b;
+    }
+    
+    .instructions h3 {
+      color: #92400e;
+      margin-bottom: 15px;
+      font-size: 1.5rem;
+    }
+    
+    .instructions p {
+      color: #78350f;
+      font-size: 1.2rem;
+      line-height: 1.6;
+      text-align: left;
+    }
+    
+    .status-badge {
+      display: inline-block;
+      padding: 8px 20px;
+      background: #10b981;
+      color: white;
+      border-radius: 20px;
+      font-size: 1rem;
+      font-weight: 600;
+      margin-top: 15px;
+    }
+    
+    .auto-refresh-notice {
+      margin-top: 20px;
+      color: #6b7280;
+      font-size: 0.95rem;
+    }
+    
+    .error-message {
+      background: #fee2e2;
+      color: #991b1b;
+      padding: 20px;
+      border-radius: 10px;
+      font-size: 1.1rem;
+    }
+
+    .qr-info {
+      margin-top: 20px;
+      padding: 15px;
+      background: #dbeafe;
+      border-radius: 10px;
+      color: #1e40af;
+    }
+    
+    /* Fullscreen optimization */
+    @media (min-width: 1200px) {
+      .display-container {
+        max-width: 1000px;
+        padding: 80px;
+      }
+      
+      .header h1 {
+        font-size: 4rem;
+      }
+      
+      .qr-code {
+        max-width: 500px;
+      }
+      
+      .time-display {
+        font-size: 5rem;
+      }
+    }
+    
+    /* Mobile optimization */
+    @media (max-width: 768px) {
+      .display-container {
+        padding: 30px;
+      }
+      
+      .header h1 {
+        font-size: 2rem;
+      }
+      
+      .time-display {
+        font-size: 2.5rem;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="display-container">
+      <div class="header">
+      <h1>🔬 PIXL Lab Check-In</h1>
+      <p>Scan QR Code to Check In/Out</p>
+    </div> 
+
+
+    <div class="qr-container" id="qrContainer">
+      <div class="loading">
+        <div class="spinner"></div>
+        <p style="color: #6b7280; font-size: 1.2rem;">Loading today's QR code...</p>
+      </div>
+    </div>
+
+    <div class="qr-info" id="qrInfo" style="display: none;">
+      <p><strong>QR Code Loaded Successfully!</strong></p>
+      <p><small>Date: <span id="qrDate"></span></small></p>
+      <p><small>Time: <span id="qrTime"></span></small></p>
+    </div>
+    
+    <div class="datetime-info">
+      <div class="date-display" id="dateDisplay">Loading...</div>
+      <div class="time-display" id="timeDisplay">--:--:--</div>
+      <div class="status-badge">🟢 Active</div>
+    </div>
+    
+    <div class="instructions">
+      <h3>📱 How to Check In/Out</h3>
+      <p>
+        <strong>1.</strong> Open your phone camera<br>
+        <strong>2.</strong> Point at the QR code above<br>
+        <strong>3.</strong> Tap the notification to open the link<br>
+        <strong>4.</strong> Enter your Staff ID and follow instructions
+      </p>
+    </div>
+    
+    <div class="auto-refresh-notice">
+      🔄 This page auto-refreshes at midnight to show the new daily QR code
+    </div>
+  </div>
+
+  <script>
+    let currentDate = '';
+    let retryCount = 0;
+    const MAX_RETRIES = 5;
+    
+    // Update time display every second
+    function updateTime() {
+      const now = new Date();
+      
+      // Update date
+      const dateOptions = { 
+        weekday: 'long', 
+        year: 'numeric', 
+        month: 'long', 
+        day: 'numeric' 
+      };
+      document.getElementById('dateDisplay').textContent = now.toLocaleDateString('en-US', dateOptions);
+      
+      // Update time
+      const timeStr = now.toLocaleTimeString('en-US', { 
+        hour: '2-digit', 
+        minute: '2-digit', 
+        second: '2-digit',
+        hour12: true 
+      });
+      document.getElementById('timeDisplay').textContent = timeStr;
+      
+      // Check if date has changed (midnight rollover)
+      const dateStr = now.toISOString().split('T')[0];
+      if (currentDate && dateStr !== currentDate) {
+        console.log('Date changed from', currentDate, 'to', dateStr);
+        console.log('Refreshing QR code for new day...');
+        retryCount = 0;
+        loadQRCode();
+      }
+      currentDate = dateStr;
+    }
+    
+    // Load today's QR code
+    function loadQRCode() {
+      console.log('Loading QR code... (Attempt ' + (retryCount + 1) + ')');
+      
+      google.script.run
+        .withSuccessHandler(displayQRCode)
+        .withFailureHandler(handleError)
+        .getCurrentQRCode();
+    }
+    
+    // Display QR code
+    function displayQRCode(result) {
+      console.log('QR Code Result:', result);
+      
+      const container = document.getElementById('qrContainer');
+      const qrInfo = document.getElementById('qrInfo');
+      
+      if (!result || !result.success) {
+        const errorMsg = result ? result.message : 'Unknown error occurred';
+        console.error('QR load failed:', errorMsg);
+        
+        container.innerHTML = `
+          <div class="error-message">
+            ❌ ${errorMsg}
+            <br><br>
+            <small>Retrying in 10 seconds...</small>
+          </div>
+        `;
+        
+        qrInfo.style.display = 'none';
+        
+        // Retry with exponential backoff
+        if (retryCount < MAX_RETRIES) {
+          retryCount++;
+          const delay = Math.min(10000 * retryCount, 60000);
+          console.log('Retrying in', delay / 1000, 'seconds...');
+          setTimeout(loadQRCode, delay);
+        } else {
+          container.innerHTML = `
+            <div class="error-message">
+              ❌ Unable to load QR code after ${MAX_RETRIES} attempts.
+              <br><br>
+              Please refresh the page or contact your administrator.
+            </div>
+          `;
+        }
+        return;
+      }
+      
+      // Success! Display QR code
+      console.log('QR code loaded successfully');
+      console.log('Date:', result.date);
+      console.log('QR Image URL:', result.qrImageUrl);
+      
+      retryCount = 0; // Reset retry counter on success
+      
+      // Create image with error handling
+      const img = new Image();
+      img.onload = function() {
+        container.innerHTML = `
+          <img src="${result.qrImageUrl}" 
+               alt="Lab Check-In QR Code" 
+               class="qr-code">
+        `;
+        
+        // Show QR info
+        qrInfo.style.display = 'block';
+        document.getElementById('qrDate').textContent = result.date;
+        document.getElementById('qrTime').textContent = result.timestamp;
+      };
+      
+      img.onerror = function() {
+        console.error('QR image failed to load');
+        handleImageError();
+      };
+      
+      img.src = result.qrImageUrl;
+    }
+    
+    // Handle QR image load errors
+    function handleImageError() {
+      console.error('QR image failed to load');
+      const container = document.getElementById('qrContainer');
+      container.innerHTML = `
+        <div class="error-message">
+          ❌ QR code image failed to load
+          <br><br>
+          <small>Retrying in 10 seconds...</small>
+        </div>
+      `;
+      setTimeout(loadQRCode, 10000);
+    }
+    
+    // Handle script execution errors
+    function handleError(error) {
+      console.error('Script execution error:', error);
+      const container = document.getElementById('qrContainer');
+      
+      container.innerHTML = `
+        <div class="error-message">
+          ❌ Error loading QR code: ${error.message || 'Unknown error'}
+          <br><br>
+          <small>Retrying in 10 seconds...</small>
+        </div>
+      `;
+      
+      // Retry
+      if (retryCount < MAX_RETRIES) {
+        retryCount++;
+        setTimeout(loadQRCode, 10000);
+      }
+    }
+    
+    // Initialize on page load
+    window.onload = function() {
+      console.log('QR Display page loaded');
+      
+      // Start time updates
+      updateTime();
+      setInterval(updateTime, 1000);
+      
+      // Load QR code
+      loadQRCode();
+      
+      // Schedule midnight refresh
+      scheduleMidnightRefresh();
+    };
+    
+    // Schedule refresh at next midnight
+    function scheduleMidnightRefresh() {
+      const now = new Date();
+      const tomorrow = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1, 0, 1, 0);
+      const delay = tomorrow - now;
+      
+      console.log('Next midnight refresh in', Math.round(delay / 1000 / 60), 'minutes');
+      
+      setTimeout(function() {
+        console.log('Midnight refresh triggered');
+        retryCount = 0;
+        loadQRCode();
+        scheduleMidnightRefresh(); // Schedule next day
+      }, delay);
+    }
+    
+    // Handle page visibility changes (smart board wake up)
+    document.addEventListener('visibilitychange', function() {
+      if (!document.hidden) {
+        console.log('Page became visible, refreshing...');
+        retryCount = 0;
+        loadQRCode();
+      }
+    });
+    
+    // Periodic refresh every 5 minutes (backup)
+    setInterval(function() {
+      console.log('Periodic 5-minute refresh check');
+      loadQRCode();
+    }, 1 * 60 * 1000);
+  </script>
+</body>
+</html>

@@ -1,0 +1,1583 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <base target="_top">
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Admin Dashboard</title>
+  
+  <!-- Bootstrap 5 CSS -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  <!-- Bootstrap Icons -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css" rel="stylesheet">
+  
+  <style>
+    body {
+      background: #f8f9fa;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    }
+    
+    .navbar {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+    }
+    
+    .navbar-brand {
+      font-weight: 600;
+      font-size: 1.3rem;
+    }
+    
+    .main-content {
+      padding: 30px 15px;
+    }
+    
+    .stat-card {
+      background: white;
+      border-radius: 15px;
+      padding: 25px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+      margin-bottom: 20px;
+      transition: transform 0.3s ease;
+    }
+    
+    .stat-card:hover {
+      transform: translateY(-5px);
+      box-shadow: 0 5px 20px rgba(0,0,0,0.1);
+    }
+    
+    .stat-icon {
+      font-size: 3rem;
+      opacity: 0.8;
+    }
+    
+    .stat-number {
+      font-size: 2.5rem;
+      font-weight: 700;
+      margin: 10px 0;
+    }
+    
+    .stat-label {
+      color: #6b7280;
+      font-size: 0.95rem;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    
+    .card {
+      border-radius: 15px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+      border: none;
+      margin-bottom: 20px;
+    }
+    
+    .card-header {
+      background: white;
+      border-bottom: 2px solid #f3f4f6;
+      padding: 20px;
+      font-weight: 600;
+      font-size: 1.1rem;
+    }
+    
+    .btn-custom {
+      padding: 10px 20px;
+      border-radius: 10px;
+      font-weight: 600;
+      transition: all 0.3s ease;
+    }
+    
+    .btn-custom:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+    }
+    
+    .table {
+      margin-bottom: 0;
+    }
+    
+    .table thead {
+      background: #f8f9fa;
+    }
+    
+    .badge {
+      padding: 6px 12px;
+      border-radius: 6px;
+      font-weight: 600;
+    }
+    
+    .qr-code-container {
+      text-align: center;
+      padding: 30px;
+      background: white;
+      border-radius: 15px;
+    }
+    
+    .qr-code-container img {
+      max-width: 100%;
+      border-radius: 10px;
+      box-shadow: 0 5px 20px rgba(0,0,0,0.1);
+    }
+    
+    .nav-tabs .nav-link {
+      border: none;
+      color: #6b7280;
+      font-weight: 600;
+      padding: 12px 20px;
+    }
+    
+    .nav-tabs .nav-link.active {
+      color: #667eea;
+      background: transparent;
+      border-bottom: 3px solid #667eea;
+    }
+    
+    .form-control, .form-select {
+      border-radius: 10px;
+      border: 2px solid #e5e7eb;
+      padding: 10px 15px;
+    }
+    
+    .form-control:focus, .form-select:focus {
+      border-color: #667eea;
+      box-shadow: 0 0 0 0.2rem rgba(102, 126, 234, 0.25);
+    }
+    
+    .modal-content {
+      border-radius: 15px;
+      border: none;
+    }
+    
+    .modal-header {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      border-radius: 15px 15px 0 0;
+    }
+    
+    .alert {
+      border-radius: 10px;
+      border: none;
+    }
+    
+    .staff-item {
+      padding: 15px;
+      background: #f9fafb;
+      border-radius: 10px;
+      margin-bottom: 10px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    
+    .refresh-btn {
+      position: relative;
+      overflow: hidden;
+    }
+    
+    .refresh-btn.spinning i {
+      animation: spin 1s linear infinite;
+    }
+    
+    @keyframes spin {
+      100% { transform: rotate(360deg); }
+    }
+    
+    .time-badge {
+      background: #10b981;
+      color: white;
+      padding: 4px 10px;
+      border-radius: 6px;
+      font-size: 0.85rem;
+      font-weight: 600;
+    }
+  </style>
+</head>
+<body>
+  <!-- Navigation -->
+  <nav class="navbar navbar-expand-lg navbar-dark">
+    <div class="container-fluid">
+      <a class="navbar-brand" href="#">
+        <i class="bi bi-speedometer2"></i> Lab Admin Dashboard
+      </a>
+      <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+        <span class="navbar-toggler-icon"></span>
+      </button>
+      <div class="collapse navbar-collapse" id="navbarNav">
+        <ul class="navbar-nav ms-auto">
+          <li class="nav-item">
+            <a class="nav-link" href="<?= ScriptApp.getService().getUrl() ?>">
+              <i class="bi bi-house-door"></i> Staff Check-In
+            </a>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link" href="<?= ScriptApp.getService().getUrl() ?>?page=admin">
+              <i class="bi bi-box-arrow-right"></i> Logout
+            </a>
+          </li>
+        </ul>
+      </div>
+    </div>
+  </nav>
+
+  <div class="container-fluid main-content">
+    <!-- Statistics Row -->
+    <div class="row mb-4">
+      <div class="col-12">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+          <h4><i class="bi bi-graph-up"></i> Real-Time Overview</h4>
+          <button class="btn btn-primary btn-custom refresh-btn" onclick="refreshDashboard()">
+            <i class="bi bi-arrow-clockwise"></i> Refresh
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <div class="row" id="statsRow">
+        <div class="col-md-3 col-sm-6">
+          <div class="stat-card text-center" style="border-left: 4px solid #ec4899;">
+            <i class="bi bi-people stat-icon" style="color: #ec4899;"></i>
+            <div class="stat-number" style="color: #ec4899;" id="todayGuests">-</div>
+            <div class="stat-label">Guests Today</div>
+        </div>
+      </div>
+      <div class="col-md-3 col-sm-6">
+        <div class="stat-card text-center" style="border-left: 4px solid #10b981;">
+          <i class="bi bi-person-check stat-icon text-success"></i>
+          <div class="stat-number text-success" id="checkedInCount">-</div>
+          <div class="stat-label">Currently Checked In</div>
+        </div>
+      </div>
+      
+      <div class="col-md-3 col-sm-6">
+        <div class="stat-card text-center" style="border-left: 4px solid #3b82f6;">
+          <i class="bi bi-clock-history stat-icon text-primary"></i>
+          <div class="stat-number text-primary" id="todayCheckIns">-</div>
+          <div class="stat-label">Today's Check-Ins</div>
+        </div>
+      </div>
+      
+      <div class="col-md-3 col-sm-6">
+        <div class="stat-card text-center" style="border-left: 4px solid #f59e0b;">
+          <i class="bi bi-hourglass-split stat-icon text-warning"></i>
+          <div class="stat-number text-warning" id="totalHoursToday">-</div>
+          <div class="stat-label">Total Hours Today</div>
+        </div>
+      </div>
+      
+      <div class="col-md-3 col-sm-6">
+        <div class="stat-card text-center" style="border-left: 4px solid #8b5cf6;">
+          <i class="bi bi-people stat-icon text-purple"></i>
+          <div class="stat-number" style="color: #8b5cf6;" id="totalStaff">-</div>
+          <div class="stat-label">Total Staff</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Currently Checked In Staff -->
+    <div class="row">
+      <div class="col-12">
+        <div class="card">
+          <div class="card-header">
+            <i class="bi bi-person-lines-fill"></i> Currently Checked In Staff
+          </div>
+          <div class="card-body">
+            <div id="checkedInList">
+              <div class="text-center text-muted py-3">
+                <div class="spinner-border" role="status"></div>
+                <p class="mt-2">Loading...</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Tabs for Different Sections -->
+    <div class="row">
+      <div class="col-12">
+        <ul class="nav nav-tabs" id="adminTabs" role="tablist">
+          <li class="nav-item" role="presentation">
+            <button class="nav-link active" id="qr-tab" data-bs-toggle="tab" data-bs-target="#qr-panel" type="button">
+              <i class="bi bi-qr-code"></i> QR Code Management
+            </button>
+          </li>
+          <li class="nav-item" role="presentation">
+            <button class="nav-link" id="staff-tab" data-bs-toggle="tab" data-bs-target="#staff-panel" type="button">
+              <i class="bi bi-people"></i> Staff Management
+            </button>
+          </li>
+          <li class="nav-item" role="presentation">
+            <button class="nav-link" id="reports-tab" data-bs-toggle="tab" data-bs-target="#reports-panel" type="button">
+              <i class="bi bi-file-earmark-bar-graph"></i> Reports & Logs
+            </button>
+          </li>
+          <li class="nav-item" role="presentation">
+            <button class="nav-link" id="admin-actions-tab" data-bs-toggle="tab" data-bs-target="#admin-actions-panel" type="button">
+              <i class="bi bi-gear"></i> Admin Actions
+            </button>
+          </li>
+        </ul>
+
+        <div class="tab-content mt-3" id="adminTabsContent">
+
+          <!-- QR Code Panel -->
+            <div class="tab-pane fade show active" id="qr-panel">
+              <div class="card">
+                <div class="card-header">
+                  <i class="bi bi-qr-code-scan"></i> Daily QR Code Management
+                </div>
+                <div class="card-body">
+                  <div class="row">
+                    <div class="col-md-6">
+                      <div class="qr-code-container" id="qrCodeDisplay">
+                        <div class="spinner-border text-primary" role="status"></div>
+                        <p class="mt-3">Loading current QR code...</p>
+                      </div>
+                      <div id="qrCodeInfo" class="mt-3"></div>
+                    </div>
+                    <div class="col-md-6">
+                      <h5><i class="bi bi-info-circle"></i> Daily QR Code System</h5>
+                      <div class="alert alert-info">
+                        <p><strong>🔄 Auto-Generation:</strong> New QR code at 7:00 AM daily</p>
+                        <p><strong>📅 Validity:</strong> Each QR code valid for entire day</p>
+                        <p><strong>🔒 Security:</strong> Previous codes rejected automatically</p>
+                        <p><strong>📱 Smart Boards:</strong> Use QR Display page below</p>
+                      </div>
+                      
+                      <div class="d-grid gap-2 mb-3">
+                        <button class="btn btn-success btn-custom" onclick="openQRDisplay()">
+                          <i class="bi bi-display"></i> Open QR Display Page
+                        </button>
+                        <button class="btn btn-primary btn-custom" onclick="generateNewQRManually()">
+                          <i class="bi bi-arrow-repeat"></i> Generate New QR Code Now
+                        </button>
+                        <button class="btn btn-secondary btn-custom" onclick="loadCurrentQR()">
+                          <i class="bi bi-refresh"></i> Refresh Display
+                        </button>
+                        <button class="btn btn-info btn-custom" onclick="downloadQR()">
+                          <i class="bi bi-download"></i> Download QR Code
+                        </button>
+                        <button class="btn btn-warning btn-custom" onclick="printQR()">
+                          <i class="bi bi-printer"></i> Print QR Code
+                        </button>
+                      </div>
+                      
+                      <div class="alert alert-success">
+                        <h6><i class="bi bi-link-45deg"></i> QR Display URL for Smart Boards:</h6>
+                        <div class="input-group mb-2">
+                          <input type="text" class="form-control" id="qrDisplayUrl" readonly>
+                          <button class="btn btn-outline-primary" type="button" onclick="copyQRDisplayUrl()">
+                            <i class="bi bi-clipboard"></i> Copy
+                          </button>
+                        </div>
+                        <small>📌 Open this URL on smart boards in fullscreen (F11)</small>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+          <!-- Staff Management Panel -->
+          <div class="tab-pane fade" id="staff-panel">
+            <div class="card">
+              <div class="card-header d-flex justify-content-between align-items-center">
+                <span><i class="bi bi-people"></i> Staff Management</span>
+                <button class="btn btn-primary btn-sm btn-custom" data-bs-toggle="modal" data-bs-target="#addStaffModal">
+                  <i class="bi bi-plus-circle"></i> Add New Staff
+                </button>
+              </div>
+              <div class="card-body">
+                <div class="mb-3">
+                  <input type="text" class="form-control" id="staffSearch" placeholder="Search staff by name or ID...">
+                </div>
+                <div id="staffList">
+                  <div class="text-center text-muted py-3">
+                    <div class="spinner-border" role="status"></div>
+                    <p class="mt-2">Loading staff...</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Reports Panel -->
+          <div class="tab-pane fade" id="reports-panel">
+            <div class="row">
+              <div class="col-md-6">
+                <div class="card">
+                  <div class="card-header">
+                    <i class="bi bi-calendar-week"></i> Generate Report
+                  </div>
+                  <div class="card-body">
+                    <form id="reportForm">
+                      <div class="mb-3">
+                        <label class="form-label">Report Type</label>
+                        <select class="form-select" id="reportType" onchange="updateReportForm()">
+                          <option value="daily">Daily Report</option>
+                          <option value="weekly">Weekly Report</option>
+                          <option value="monthly">Monthly Report</option>
+                          <option value="custom">Custom Date Range</option>
+                          <option value="staff">Individual Staff Report</option>
+                        </select>
+                      </div>
+                      
+                      <div class="mb-3" id="staffSelectDiv" style="display: none;">
+                        <label class="form-label">Select Staff</label>
+                        <select class="form-select" id="reportStaffId">
+                          <option value="">Select Staff Member</option>
+                        </select>
+                      </div>
+                      
+                      <div class="mb-3" id="dateRangeDiv" style="display: none;">
+                        <label class="form-label">Start Date</label>
+                        <input type="date" class="form-control" id="reportStartDate">
+                        <label class="form-label mt-2">End Date</label>
+                        <input type="date" class="form-control" id="reportEndDate">
+                      </div>
+                      
+                      <div class="mb-3" id="singleDateDiv">
+                        <label class="form-label">Date</label>
+                        <input type="date" class="form-control" id="reportDate">
+                      </div>
+                      
+                      <div class="alert alert-info" id="reportHelp">
+                        <small><i class="bi bi-info-circle"></i> Select a report type to begin</small>
+                      </div>
+                      
+                      <button type="button" class="btn btn-primary btn-custom w-100" onclick="generateReport()">
+                        <i class="bi bi-file-earmark-text"></i> Generate Report
+                      </button>
+                    </form>
+                  </div>
+                </div>
+              </div>
+              
+              <div class="col-md-6">
+                <div class="card">
+                  <div class="card-header">
+                    <i class="bi bi-table"></i> Report Results
+                  </div>
+                  <div class="card-body">
+                    <div id="reportResults">
+                      <div class="text-center text-muted py-5">
+                        <i class="bi bi-file-earmark-bar-graph" style="font-size: 3rem;"></i>
+                        <p class="mt-3">Generate a report to see results here</p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Recent Logs -->
+            <div class="card mt-3">
+              <div class="card-header">
+                <i class="bi bi-clock-history"></i> Recent Check-In/Out Logs
+              </div>
+              <div class="card-body">
+                <div class="table-responsive">
+                  <table class="table table-hover">
+                    <thead>
+                      <tr>
+                        <th>Staff ID</th>
+                        <th>Name</th>
+                        <th>Check-In</th>
+                        <th>Check-Out</th>
+                        <th>Duration</th>
+                        <th>Status</th>
+                      </tr>
+                    </thead>
+                    <tbody id="recentLogsTable">
+                      <tr>
+                        <td colspan="6" class="text-center text-muted">
+                          <div class="spinner-border spinner-border-sm" role="status"></div>
+                          Loading logs...
+                        </td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Admin Actions Panel -->
+          <div class="tab-pane fade" id="admin-actions-panel">
+            <div class="row">
+              <div class="col-md-6">
+                <div class="card">
+                  <div class="card-header bg-warning text-white">
+                    <i class="bi bi-exclamation-triangle"></i> Force Actions
+                  </div>
+                  <div class="card-body">
+                    <h6>Force Check-Out All Staff</h6>
+                    <p class="text-muted">This will check out all currently checked-in staff members. Use at end of day or emergencies.</p>
+                    <button class="btn btn-warning btn-custom w-100" onclick="forceCheckOutAll()">
+                      <i class="bi bi-power"></i> Force Check-Out All
+                    </button>
+                  </div>
+                </div>
+                
+                <div class="card mt-3">
+                  <div class="card-header">
+                    <i class="bi bi-pencil-square"></i> Manual Entry
+                  </div>
+                  <div class="card-body">
+                    <form id="manualEntryForm">
+                      <div class="mb-3">
+                        <label class="form-label">Staff ID</label>
+                        <select class="form-select" id="manualStaffId" required>
+                          <option value="">Select Staff</option>
+                        </select>
+                      </div>
+                      
+                      <div class="mb-3">
+                        <label class="form-label">Action</label>
+                        <select class="form-select" id="manualAction" required>
+                          <option value="checkin">Check-In</option>
+                          <option value="checkout">Check-Out</option>
+                        </select>
+                      </div>
+                      
+                      <div class="mb-3">
+                        <label class="form-label">Date & Time</label>
+                        <input type="datetime-local" class="form-control" id="manualDateTime" required>
+                      </div>
+                      
+                      <button type="button" class="btn btn-primary btn-custom w-100" onclick="submitManualEntry()">
+                        <i class="bi bi-check-circle"></i> Submit Manual Entry
+                      </button>
+                    </form>
+                  </div>
+                </div>
+              </div>
+              
+              <div class="col-md-6">
+                <div class="card">
+                  <div class="card-header">
+                    <i class="bi bi-link-45deg"></i> Quick Links
+                  </div>
+                  <div class="card-body">
+                    <div class="d-grid gap-2">
+                      <a href="https://docs.google.com/spreadsheets/d/<?= SpreadsheetApp.getActive().getId() ?>" 
+                         target="_blank" class="btn btn-success btn-custom">
+                        <i class="bi bi-table"></i> Open Google Sheet
+                      </a>
+                      <button class="btn btn-info btn-custom" onclick="viewSheetInstructions()">
+                        <i class="bi bi-question-circle"></i> Setup Instructions
+                      </button>
+                    </div>
+                  </div>
+                </div>
+                
+                <div class="card mt-3">
+                  <div class="card-header">
+                    <i class="bi bi-info-circle"></i> System Information
+                  </div>
+                  <div class="card-body">
+                    <p><strong>Spreadsheet ID:</strong><br>
+                    <small class="text-muted"><?= SpreadsheetApp.getActive().getId() ?></small></p>
+                    <p><strong>Web App URL:</strong><br>
+                    <small class="text-muted"><?= ScriptApp.getService().getUrl() ?></small></p>
+                    <p><strong>Time Zone:</strong><br>
+                    <small class="text-muted"><?= Session.getScriptTimeZone() ?></small></p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Add Staff Modal -->
+  <div class="modal fade" id="addStaffModal" tabindex="-1">
+    <div class="modal-dialog">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title"><i class="bi bi-person-plus"></i> Add New Staff Member</h5>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <form id="addStaffForm">
+            <div class="mb-3">
+              <label class="form-label">Staff ID *</label>
+              <input type="text" class="form-control" id="newStaffId" required>
+            </div>
+            <div class="mb-3">
+              <label class="form-label">Full Name *</label>
+              <input type="text" class="form-control" id="newStaffName" required>
+            </div>
+            <div class="mb-3">
+              <label class="form-label">Email</label>
+              <input type="email" class="form-control" id="newStaffEmail">
+            </div>
+            <div class="mb-3">
+              <label class="form-label">Role</label>
+              <select class="form-select" id="newStaffRole">
+                <option value="Staff">Staff</option>
+                <option value="Research Assistant">Research Assistant</option>
+                <option value="PhD Student">PhD Student</option>
+                <option value="Postdoc">Postdoc</option>
+                <option value="Lab Manager">Lab Manager</option>
+              </select>
+            </div>
+            <div class="mb-3">
+              <label class="form-label">Status</label>
+              <select class="form-select" id="newStaffStatus">
+                <option value="Active">Active</option>
+                <option value="Inactive">Inactive</option>
+              </select>
+            </div>
+          </form>
+          <div id="addStaffAlert"></div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+          <button type="button" class="btn btn-primary" onclick="addNewStaff()">
+            <i class="bi bi-plus-circle"></i> Add Staff
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Bootstrap 5 JS -->
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+  
+  <script>
+    // Load dashboard on page load
+   window.onload = function() {
+  refreshDashboard();
+  loadCurrentQR();        // ← MUST BE HERE
+  setQRDisplayUrl();      // ← MUST BE HERE
+  loadStaffList();
+  loadRecentLogs();
+  populateStaffSelects();
+  updateReportForm();  // ← ADD THIS LINE
+  
+  // Set default dates
+  const today = new Date().toISOString().split('T')[0];
+  document.getElementById('reportDate').value = today;
+  document.getElementById('reportStartDate').value = today;
+  document.getElementById('reportEndDate').value = today;
+  
+  // Set manual entry datetime
+  const now = new Date();
+  now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
+  document.getElementById('manualDateTime').value = now.toISOString().slice(0, 16);
+  
+  // Auto-refresh every 30 seconds
+  setInterval(refreshDashboard, 30000);
+};
+    
+    // Report type change handler
+    document.getElementById('reportType').addEventListener('change', function() {
+      const type = this.value;
+      document.getElementById('staffSelectDiv').style.display = (type === 'staff') ? 'block' : 'none';
+      document.getElementById('dateRangeDiv').style.display = (type === 'custom') ? 'block' : 'none';
+      document.getElementById('singleDateDiv').style.display = (type === 'daily') ? 'block' : 'none';
+    });
+    
+    // Refresh dashboard data
+    function refreshDashboard() {
+      const btn = document.querySelector('.refresh-btn');
+      btn.classList.add('spinning');
+      
+      google.script.run
+        .withSuccessHandler(function(data) {
+          btn.classList.remove('spinning');
+          updateDashboardStats(data);
+        })
+        .withFailureHandler(function(error) {
+          btn.classList.remove('spinning');
+          showAlert('danger', 'Error refreshing dashboard: ' + error.message);
+        })
+        .getDashboardData();
+    }
+    
+    function updateDashboardStats(data) {
+      if (!data.success) {
+        showAlert('danger', data.message);
+        return;
+      }
+      
+      document.getElementById('checkedInCount').textContent = data.currentlyCheckedIn;
+      document.getElementById('todayCheckIns').textContent = data.todayCheckIns;
+      document.getElementById('totalHoursToday').textContent = data.totalHoursToday;
+      document.getElementById('totalStaff').textContent = data.totalStaff;
+      document.getElementById('todayGuests').textContent = data.todayGuests || 0;  // ← ADD THIS
+      
+      // Update checked-in staff list
+      const checkedInList = document.getElementById('checkedInList');
+      if (data.checkedInStaff.length === 0) {
+        checkedInList.innerHTML = '<div class="text-center text-muted py-3"><i class="bi bi-inbox"></i><p class="mt-2">No staff currently checked in</p></div>';
+      } else {
+        let html = '';
+        data.checkedInStaff.forEach(staff => {
+          html += `
+            <div class="staff-item">
+              <div>
+                <strong>${staff.name}</strong>
+                <br>
+                <small class="text-muted">ID: ${staff.staffId}</small>
+              </div>
+              <div class="text-end">
+                <div class="time-badge">${staff.duration} hrs</div>
+                <br>
+                <small class="text-muted">Since ${new Date(staff.checkInTime).toLocaleTimeString()}</small>
+              </div>
+            </div>
+          `;
+        });
+        checkedInList.innerHTML = html;
+      }
+    }
+    
+    // QR Code Management
+    function loadQRCode() {
+      google.script.run
+        .withSuccessHandler(displayQRCode)
+        .withFailureHandler(handleError)
+        .getCurrentQRCode();
+    }
+    
+    function displayQRCode(result) {
+      const container = document.getElementById('qrCodeDisplay');
+      const info = document.getElementById('qrCodeInfo');
+      
+      if (result.success) {
+        container.innerHTML = `
+          <img src="${result.qrImageUrl}" alt="Daily QR Code" id="qrImage">
+          <p class="mt-3"><strong>Today's QR Code</strong></p>
+          <p class="text-muted">${new Date(result.timestamp).toLocaleString()}</p>
+        `;
+        
+        info.innerHTML = `
+          <div class="alert alert-success">
+            <i class="bi bi-check-circle"></i> QR Code is active and ready to use
+          </div>
+        `;
+      } else {
+        container.innerHTML = `
+          <div class="alert alert-warning">
+            <i class="bi bi-exclamation-triangle"></i> ${result.message}
+          </div>
+        `;
+      }
+    }
+    
+    function generateNewQR() {
+      if (!confirm('Generate a new QR code? This will invalidate the current QR code.')) return;
+      
+      google.script.run
+        .withSuccessHandler(function(result) {
+          if (result.success) {
+            displayQRCode(result);
+            showAlert('success', result.message);
+          } else {
+            showAlert('danger', result.message);
+          }
+        })
+        .withFailureHandler(handleError)
+        .generateDailyQRCode();
+    }
+    
+    function downloadQR() {
+      const img = document.getElementById('qrImage');
+      if (img) {
+        const link = document.createElement('a');
+        link.href = img.src;
+        link.download = 'lab-qr-code-' + new Date().toISOString().split('T')[0] + '.png';
+        link.click();
+      }
+    }
+    
+    function printQR() {
+      const img = document.getElementById('qrImage');
+      if (img) {
+        const printWindow = window.open('', '', 'width=600,height=600');
+        printWindow.document.write(`
+          <html>
+            <head>
+              <title>Lab QR Code</title>
+              <style>
+                body { text-align: center; font-family: Arial; padding: 50px; }
+                img { max-width: 400px; }
+              </style>
+            </head>
+            <body>
+              <h1>Lab Check-In QR Code</h1>
+              <p>Date: ${new Date().toLocaleDateString()}</p>
+              <img src="${img.src}">
+              <p>Scan this code to check in to the lab</p>
+            </body>
+          </html>
+        `);
+        printWindow.document.close();
+        printWindow.print();
+      }
+    }
+    
+        // ============================================
+        // DAILY QR CODE FUNCTIONS (SIMPLIFIED)
+        // ============================================
+
+       // ============================================
+// DAILY QR CODE FUNCTIONS
+// ============================================
+
+// Load current daily QR code
+function loadCurrentQR() {
+  const container = document.getElementById('qrCodeDisplay');
+  const info = document.getElementById('qrCodeInfo');
+  
+  container.innerHTML = `
+    <div class="text-center">
+      <div class="spinner-border text-primary" role="status"></div>
+      <p class="mt-3">Loading current QR code...</p>
+    </div>
+  `;
+  
+  google.script.run
+    .withSuccessHandler(function(result) {
+      if (result.success) {
+        container.innerHTML = `
+          <img src="${result.qrImageUrl}" 
+               alt="Today's QR Code" 
+               id="qrImage" 
+               style="max-width: 100%; border-radius: 15px; box-shadow: 0 5px 20px rgba(0,0,0,0.1);">
+          <p class="mt-3"><strong>Today's QR Code</strong></p>
+        `;
+        
+        info.innerHTML = `
+          <div class="alert alert-success">
+            <i class="bi bi-check-circle"></i> <strong>Active QR Code</strong><br>
+            <small>Date: ${result.date}</small><br>
+            <small>Generated: ${result.timestamp}</small>
+          </div>
+        `;
+      } else {
+        container.innerHTML = `
+          <div class="alert alert-warning">
+            <i class="bi bi-exclamation-triangle"></i> ${result.message}
+          </div>
+        `;
+        info.innerHTML = '';
+      }
+    })
+    .withFailureHandler(function(error) {
+      container.innerHTML = `
+        <div class="alert alert-danger">
+          <i class="bi bi-x-circle"></i> Error: ${error.message}
+        </div>
+      `;
+      info.innerHTML = '';
+    })
+    .getCurrentQRCode();
+}
+
+// Generate new QR code manually
+function generateNewQRManually() {
+  if (!confirm('Generate a new QR code for today? This will replace the current QR code.')) {
+    return;
+  }
+  
+  const btn = event.target;
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Generating...';
+  
+  google.script.run
+    .withSuccessHandler(function(result) {
+      btn.disabled = false;
+      btn.innerHTML = '<i class="bi bi-arrow-repeat"></i> Generate New QR Code Now';
+      
+      if (result.success) {
+        showAlert('success', result.message);
+        loadCurrentQR();
+      } else {
+        showAlert('danger', result.message);
+      }
+    })
+    .withFailureHandler(function(error) {
+      btn.disabled = false;
+      btn.innerHTML = '<i class="bi bi-arrow-repeat"></i> Generate New QR Code Now';
+      showAlert('danger', 'Error: ' + error.message);
+    })
+    .generateDailyQRCode();
+}
+
+// Open QR Display page
+function openQRDisplay() {
+  const displayUrl = document.getElementById('qrDisplayUrl').value;
+  window.open(displayUrl, '_blank');
+  showAlert('info', 'QR Display opened in new tab. Press F11 for fullscreen on smart board.');
+}
+
+// Copy QR Display URL
+function copyQRDisplayUrl() {
+  const input = document.getElementById('qrDisplayUrl');
+  input.select();
+  input.setSelectionRange(0, 99999); // For mobile
+  
+  try {
+    document.execCommand('copy');
+    const btn = event.target.closest('button');
+    const originalHTML = btn.innerHTML;
+    btn.innerHTML = '<i class="bi bi-check"></i> Copied!';
+    
+    setTimeout(() => {
+      btn.innerHTML = originalHTML;
+    }, 2000);
+    
+    showAlert('success', 'QR Display URL copied to clipboard!');
+  } catch (err) {
+    showAlert('warning', 'Could not copy. Please copy manually.');
+  }
+}
+
+// Set QR Display URL
+function setQRDisplayUrl() {
+  // Get current page URL and modify it
+  const currentUrl = window.location.href;
+  const baseUrl = currentUrl.split('?')[0];
+  const displayUrl = baseUrl + '?page=qrdisplay';
+  
+  const input = document.getElementById('qrDisplayUrl');
+  if (input) {
+    input.value = displayUrl;
+  }
+}
+
+// Download QR code
+function downloadQR() {
+  const img = document.getElementById('qrImage');
+  if (img) {
+    const link = document.createElement('a');
+    link.href = img.src;
+    link.download = 'lab-qr-code-' + new Date().toISOString().split('T')[0] + '.png';
+    link.click();
+    showAlert('success', 'QR code downloaded!');
+  } else {
+    showAlert('warning', 'Please load the QR code first');
+  }
+}
+
+// Print QR code
+function printQR() {
+  const img = document.getElementById('qrImage');
+  if (img) {
+    const printWindow = window.open('', '', 'width=600,height=600');
+    printWindow.document.write(`
+      <html>
+        <head>
+          <title>Lab QR Code</title>
+          <style>
+            body { text-align: center; font-family: Arial; padding: 50px; }
+            img { max-width: 400px; }
+            h1 { color: #667eea; }
+          </style>
+        </head>
+        <body>
+          <h1>Lab Check-In QR Code</h1>
+          <p>Date: ${new Date().toLocaleDateString()}</p>
+          <p>Time: ${new Date().toLocaleTimeString()}</p>
+          <img src="${img.src}">
+          <p><strong>Scan this code to check in/out</strong></p>
+          <p><small>Valid for today only</small></p>
+        </body>
+      </html>
+    `);
+    printWindow.document.close();
+    printWindow.print();
+  } else {
+    showAlert('warning', 'Please load the QR code first');
+  }
+}
+
+// Update report form based on selected type
+// Update report form based on selected type
+function updateReportForm() {
+  const reportType = document.getElementById('reportType').value;
+  const staffSelectDiv = document.getElementById('staffSelectDiv');
+  const dateRangeDiv = document.getElementById('dateRangeDiv');
+  const singleDateDiv = document.getElementById('singleDateDiv');
+  const reportHelp = document.getElementById('reportHelp');
+  
+  // Hide all optional fields first
+  staffSelectDiv.style.display = 'none';
+  dateRangeDiv.style.display = 'none';
+  singleDateDiv.style.display = 'none';
+  
+  // Show appropriate fields based on report type
+  switch(reportType) {
+    case 'daily':
+      singleDateDiv.style.display = 'block';
+      reportHelp.innerHTML = '<small><i class="bi bi-info-circle"></i> View all check-ins for a specific date</small>';
+      break;
+      
+    case 'weekly':
+      reportHelp.innerHTML = '<small><i class="bi bi-info-circle"></i> View check-ins for the current week (Monday to Sunday)</small>';
+      break;
+      
+    case 'monthly':
+      reportHelp.innerHTML = '<small><i class="bi bi-info-circle"></i> View check-ins for the current month</small>';
+      break;
+      
+    case 'custom':
+      dateRangeDiv.style.display = 'block';
+      reportHelp.innerHTML = '<small><i class="bi bi-info-circle"></i> Select a custom date range</small>';
+      break;
+      
+    case 'staff':
+      staffSelectDiv.style.display = 'block';
+      // Don't show date range - we'll get ALL records
+      reportHelp.innerHTML = '<small><i class="bi bi-info-circle"></i> <strong>View ALL records for the selected staff member (all time)</strong></small>';
+      break;
+  }
+}
+
+
+    // Staff Management
+    function loadStaffList() {
+      google.script.run
+        .withSuccessHandler(displayStaffList)
+        .withFailureHandler(handleError)
+        .getAllStaff();
+    }
+    
+    function displayStaffList(result) {
+      const container = document.getElementById('staffList');
+      
+      if (!result.success) {
+        container.innerHTML = `<div class="alert alert-danger">${result.message}</div>`;
+        return;
+      }
+      
+      if (result.staff.length === 0) {
+        container.innerHTML = '<div class="text-center text-muted py-3"><i class="bi bi-inbox"></i><p class="mt-2">No staff members found</p></div>';
+        return;
+      }
+      
+      let html = '<div class="table-responsive"><table class="table table-hover"><thead><tr><th>ID</th><th>Name</th><th>Email</th><th>Role</th><th>Status</th><th>Actions</th></tr></thead><tbody>';
+      
+      result.staff.forEach(staff => {
+        const statusBadge = staff.status === 'Active' ? 'success' : 'secondary';
+        html += `
+          <tr>
+            <td>${staff.id}</td>
+            <td><strong>${staff.name}</strong></td>
+            <td>${staff.email || '-'}</td>
+            <td>${staff.role}</td>
+            <td><span class="badge bg-${statusBadge}">${staff.status}</span></td>
+            <td>
+              <button class="btn btn-sm btn-danger" onclick="deleteStaffMember('${staff.id}', '${staff.name}')">
+                <i class="bi bi-trash"></i>
+              </button>
+            </td>
+          </tr>
+        `;
+      });
+      
+      html += '</tbody></table></div>';
+      container.innerHTML = html;
+    }
+    
+    function addNewStaff() {
+      const staffData = {
+        id: document.getElementById('newStaffId').value.trim(),
+        name: document.getElementById('newStaffName').value.trim(),
+        email: document.getElementById('newStaffEmail').value.trim(),
+        role: document.getElementById('newStaffRole').value,
+        status: document.getElementById('newStaffStatus').value
+      };
+      
+      if (!staffData.id || !staffData.name) {
+        document.getElementById('addStaffAlert').innerHTML = 
+          '<div class="alert alert-warning">Please fill in required fields</div>';
+        return;
+      }
+      
+      google.script.run
+        .withSuccessHandler(function(result) {
+          if (result.success) {
+            showAlert('success', result.message);
+            bootstrap.Modal.getInstance(document.getElementById('addStaffModal')).hide();
+            document.getElementById('addStaffForm').reset();
+            loadStaffList();
+            populateStaffSelects();
+          } else {
+            document.getElementById('addStaffAlert').innerHTML = 
+              `<div class="alert alert-danger">${result.message}</div>`;
+          }
+        })
+        .withFailureHandler(handleError)
+        .addStaff(staffData);
+    }
+    
+    function deleteStaffMember(staffId, staffName) {
+      if (!confirm(`Delete staff member "${staffName}"? This action cannot be undone.`)) return;
+      
+      google.script.run
+        .withSuccessHandler(function(result) {
+          if (result.success) {
+            showAlert('success', result.message);
+            loadStaffList();
+            populateStaffSelects();
+          } else {
+            showAlert('danger', result.message);
+          }
+        })
+        .withFailureHandler(handleError)
+        .deleteStaff(staffId);
+    }
+    
+    function populateStaffSelects() {
+      google.script.run
+        .withSuccessHandler(function(result) {
+          if (result.success) {
+            const selects = ['reportStaffId', 'manualStaffId'];
+            selects.forEach(selectId => {
+              const select = document.getElementById(selectId);
+              const currentValue = select.value;
+              let html = selectId === 'reportStaffId' ? '<option value="">All Staff</option>' : '<option value="">Select Staff</option>';
+              
+              result.staff.forEach(staff => {
+                html += `<option value="${staff.id}">${staff.name} (${staff.id})</option>`;
+              });
+              
+              select.innerHTML = html;
+              select.value = currentValue;
+            });
+          }
+        })
+        .getAllStaff();
+    }
+    
+ 
+    // Generate Report Function - SIMPLIFIED FOR STAFF
+        function generateReport() {
+          const reportType = document.getElementById('reportType').value;
+          const staffId = document.getElementById('reportStaffId').value;
+          
+          let startDate = null, endDate = null, singleDate = null;
+          
+          // Validate inputs based on report type
+          if (reportType === 'daily') {
+            singleDate = document.getElementById('reportDate').value;
+            if (!singleDate) {
+              showAlert('warning', 'Please select a date');
+              return;
+            }
+          } else if (reportType === 'custom') {
+            startDate = document.getElementById('reportStartDate').value;
+            endDate = document.getElementById('reportEndDate').value;
+            if (!startDate || !endDate) {
+              showAlert('warning', 'Please select start and end dates');
+              return;
+            }
+          } else if (reportType === 'staff') {
+            if (!staffId) {
+              showAlert('warning', 'Please select a staff member');
+              return;
+            }
+            // For staff report - use NULL dates to get ALL records
+            startDate = null;
+            endDate = null;
+          }
+          
+          console.log('Generating report:', {
+            type: reportType,
+            staffId: staffId,
+            startDate: startDate,
+            endDate: endDate,
+            singleDate: singleDate
+          });
+          
+          document.getElementById('reportResults').innerHTML = 
+            '<div class="text-center py-4"><div class="spinner-border text-primary" role="status"></div><p class="mt-2">Generating report...</p></div>';
+          
+          google.script.run
+            .withSuccessHandler(displayReport)
+            .withFailureHandler(function(error) {
+              console.error('Report generation error:', error);
+              document.getElementById('reportResults').innerHTML = 
+                `<div class="alert alert-danger"><i class="bi bi-x-circle"></i> Error: ${error.message}</div>`;
+            })
+            .generateComprehensiveReport(reportType, staffId, startDate, endDate, singleDate);
+        }
+    
+// Display Report Function - COMPLETE VERSION
+    function displayReport(result) {
+      const container = document.getElementById('reportResults');
+      
+      if (!result.success) {
+        container.innerHTML = `
+          <div class="alert alert-danger">
+            <i class="bi bi-x-circle"></i> ${result.message}
+          </div>
+        `;
+        return;
+      }
+      
+      let html = '';
+      
+      // Report Header
+      html += `
+        <div class="alert alert-primary">
+          <h5><i class="bi bi-file-earmark-bar-graph"></i> ${getReportTitle(result.reportType)}</h5>
+          <p class="mb-1"><strong>Period:</strong> ${getReportPeriod(result)}</p>
+          <p class="mb-0"><small>Generated: ${result.generatedAt}</small></p>
+        </div>
+      `;
+      
+      // Summary Statistics
+      html += `
+        <div class="row mb-3">
+          <div class="col-md-3">
+            <div class="stat-card text-center" style="border-left: 4px solid #3b82f6;">
+              <div class="stat-number text-primary">${result.totalLogs || 0}</div>
+              <div class="stat-label">Total Entries</div>
+            </div>
+          </div>
+          <div class="col-md-3">
+            <div class="stat-card text-center" style="border-left: 4px solid #10b981;">
+              <div class="stat-number text-success">${result.completedSessions || 0}</div>
+              <div class="stat-label">Completed Sessions</div>
+            </div>
+          </div>
+          <div class="col-md-3">
+            <div class="stat-card text-center" style="border-left: 4px solid #f59e0b;">
+              <div class="stat-number text-warning">${result.totalHours || '0.00'}</div>
+              <div class="stat-label">Total Hours</div>
+            </div>
+          </div>
+          <div class="col-md-3">
+            <div class="stat-card text-center" style="border-left: 4px solid #8b5cf6;">
+              <div class="stat-number" style="color: #8b5cf6;">${result.averageHours || '0.00'}</div>
+              <div class="stat-label">Avg Hours/Session</div>
+            </div>
+          </div>
+        </div>
+      `;
+      
+      // Staff Statistics (for range reports)
+      if (result.staffStats && result.staffStats.length > 0) {
+        html += `
+          <div class="card mb-3">
+            <div class="card-header">
+              <i class="bi bi-people"></i> Staff Performance Summary
+            </div>
+            <div class="card-body">
+              <div class="table-responsive">
+                <table class="table table-sm">
+                  <thead>
+                    <tr>
+                      <th>Staff Name</th>
+                      <th>Staff ID</th>
+                      <th class="text-center">Sessions</th>
+                      <th class="text-center">Total Hours</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+        `;
+        
+        result.staffStats.forEach(staff => {
+          html += `
+            <tr>
+              <td><strong>${staff.staffName}</strong></td>
+              <td>${staff.staffId}</td>
+              <td class="text-center">${staff.sessions}</td>
+              <td class="text-center"><span class="badge bg-primary">${staff.hours} hrs</span></td>
+            </tr>
+          `;
+        });
+        
+        html += `
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        `;
+      }
+      
+      // Individual Staff Info (for staff reports)
+      if (result.staffName && result.reportType === 'staff') {
+        html += `
+          <div class="alert alert-info">
+            <strong><i class="bi bi-person-circle"></i> Staff Member:</strong> ${result.staffName} (${result.staffId})
+          </div>
+        `;
+      }
+      
+      // Detailed Logs Table
+      if (result.logs && result.logs.length > 0) {
+        html += `
+          <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+              <span><i class="bi bi-table"></i> Detailed Logs</span>
+              <button class="btn btn-sm btn-success" onclick="exportReportToCSV()">
+                <i class="bi bi-download"></i> Export CSV
+              </button>
+            </div>
+            <div class="card-body">
+              <div class="table-responsive">
+                <table class="table table-hover table-sm" id="reportTable">
+                  <thead>
+                    <tr>
+                      <th>Date</th>
+                      <th>Staff Name</th>
+                      <th>Staff ID</th>
+                      <th>Check-In</th>
+                      <th>Check-Out</th>
+                      <th>Duration</th>
+                      <th>Status</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+        `;
+        
+        result.logs.forEach(log => {
+          const statusClass = log.status === 'Checked In' ? 'success' : log.status === 'Checked Out' ? 'secondary' : 'warning';
+          const checkInTime = log.checkInTime ? new Date(log.checkInTime).toLocaleTimeString('en-US', {hour: '2-digit', minute: '2-digit'}) : '-';
+          const checkOutTime = log.checkOutTime ? new Date(log.checkOutTime).toLocaleTimeString('en-US', {hour: '2-digit', minute: '2-digit'}) : '-';
+          
+          html += `
+            <tr>
+              <td>${log.date}</td>
+              <td><strong>${log.staffName}</strong></td>
+              <td>${log.staffId}</td>
+              <td>${checkInTime}</td>
+              <td>${checkOutTime}</td>
+              <td>${log.duration ? log.duration + ' hrs' : '-'}</td>
+              <td><span class="badge bg-${statusClass}">${log.status}</span></td>
+            </tr>
+          `;
+        });
+        
+        html += `
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        `;
+      } else {
+        html += `
+          <div class="alert alert-warning">
+            <i class="bi bi-info-circle"></i> No logs found for the selected period.
+          </div>
+        `;
+      }
+      
+      container.innerHTML = html;
+      
+      // Store report data for export
+      window.currentReportData = result;
+    }
+
+    // Helper function to get report title
+    function getReportTitle(reportType) {
+      const titles = {
+        'daily': 'Daily Report',
+        'weekly': 'Weekly Report',
+        'monthly': 'Monthly Report',
+        'custom': 'Custom Date Range Report',
+        'staff': 'Individual Staff Report'
+      };
+      return titles[reportType] || 'Report';
+    }
+
+    // Helper function to get report period
+    function getReportPeriod(result) {
+      if (result.date) {
+        return result.date;
+      } else if (result.startDate && result.endDate) {
+        return `${result.startDate} to ${result.endDate}`;
+      }
+      return 'N/A';
+    }
+
+    // Export report to CSV
+    function exportReportToCSV() {
+      if (!window.currentReportData || !window.currentReportData.logs) {
+        showAlert('warning', 'No report data to export');
+        return;
+      }
+      
+      const data = window.currentReportData;
+      let csv = 'Date,Staff Name,Staff ID,Check-In Time,Check-Out Time,Duration (Hours),Status\n';
+      
+      data.logs.forEach(log => {
+        csv += `"${log.date}","${log.staffName}","${log.staffId}","${log.checkInTime || '-'}","${log.checkOutTime || '-'}","${log.duration || '-'}","${log.status}"\n`;
+      });
+      
+      // Create download link
+      const blob = new Blob([csv], { type: 'text/csv' });
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `lab-report-${data.startDate || data.date}-${new Date().getTime()}.csv`;
+      a.click();
+      window.URL.revokeObjectURL(url);
+      
+      showAlert('success', 'Report exported successfully!');
+    }
+    
+    function loadRecentLogs() {
+      const today = new Date().toISOString().split('T')[0];
+      
+      google.script.run
+        .withSuccessHandler(function(result) {
+          const tbody = document.getElementById('recentLogsTable');
+          
+          if (!result.success || result.logs.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="6" class="text-center text-muted">No logs found</td></tr>';
+            return;
+          }
+          
+          let html = '';
+          result.logs.slice(0, 10).forEach(log => {
+            const statusBadge = log.status === 'Checked In' ? 'success' : 'secondary';
+            html += `
+              <tr>
+                <td>${log.staffId}</td>
+                <td>${log.staffName}</td>
+                <td>${new Date(log.checkInTime).toLocaleTimeString()}</td>
+                <td>${log.checkOutTime ? new Date(log.checkOutTime).toLocaleTimeString() : '-'}</td>
+                <td>${log.duration || '-'}</td>
+                <td><span class="badge bg-${statusBadge}">${log.status}</span></td>
+              </tr>
+            `;
+          });
+          
+          tbody.innerHTML = html;
+        })
+        .getStaffTimeReport(null, today, today);
+    }
+    
+    // Admin Actions
+    function forceCheckOutAll() {
+      if (!confirm('Force check-out all currently checked-in staff? This action cannot be undone.')) return;
+      
+      google.script.run
+        .withSuccessHandler(function(result) {
+          if (result.success) {
+            showAlert('success', result.message);
+            refreshDashboard();
+            loadRecentLogs();
+          } else {
+            showAlert('danger', result.message);
+          }
+        })
+        .withFailureHandler(handleError)
+        .forceCheckOutAll();
+    }
+    
+    function submitManualEntry() {
+      const staffId = document.getElementById('manualStaffId').value;
+      const action = document.getElementById('manualAction').value;
+      const dateTime = document.getElementById('manualDateTime').value;
+      
+      if (!staffId || !dateTime) {
+        showAlert('warning', 'Please fill in all fields');
+        return;
+      }
+      
+      const functionName = action === 'checkin' ? 'manualCheckIn' : 'manualCheckOut';
+      
+      google.script.run
+        .withSuccessHandler(function(result) {
+          if (result.success) {
+            showAlert('success', result.message);
+            document.getElementById('manualEntryForm').reset();
+            refreshDashboard();
+            loadRecentLogs();
+          } else {
+            showAlert('danger', result.message);
+          }
+        })
+        .withFailureHandler(handleError)
+        [functionName](staffId, dateTime);
+    }
+    
+    function viewSheetInstructions() {
+      const instructions = `
+        <div class="modal fade" id="instructionsModal" tabindex="-1">
+          <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+              <div class="modal-header">
+                <h5 class="modal-title">Setup Instructions</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+              </div>
+              <div class="modal-body">
+                <h6>Google Sheet Structure:</h6>
+                <ul>
+                  <li><strong>Staff Sheet:</strong> Contains staff member information</li>
+                  <li><strong>Check-In Logs Sheet:</strong> Records all check-in/out activities</li>
+                  <li><strong>Admin Sheet:</strong> Stores admin credentials</li>
+                  <li><strong>QR Codes Sheet:</strong> Tracks daily QR codes</li>
+                </ul>
+                <h6 class="mt-3">First Time Setup:</h6>
+                <ol>
+                  <li>Add admin credentials in the Admin sheet (Username, Password, Name)</li>
+                  <li>Add staff members using the Staff Management tab</li>
+                  <li>Generate and display the daily QR code in your lab</li>
+                  <li>Share the web app URL with your staff</li>
+                </ol>
+                <h6 class="mt-3">Daily Operations:</h6>
+                <ul>
+                  <li>Generate a new QR code each day</li>
+                  <li>Monitor real-time check-ins from this dashboard</li>
+                  <li>Generate reports as needed</li>
+                  <li>Use force check-out at end of day if needed</li>
+                </ul>
+              </div>
+            </div>
+          </div>
+        </div>
+      `;
+      
+      document.body.insertAdjacentHTML('beforeend', instructions);
+      new bootstrap.Modal(document.getElementById('instructionsModal')).show();
+    }
+    
+    // Staff search
+    document.getElementById('staffSearch').addEventListener('input', function() {
+      const searchTerm = this.value.toLowerCase();
+      const rows = document.querySelectorAll('#staffList table tbody tr');
+      
+      rows.forEach(row => {
+        const text = row.textContent.toLowerCase();
+        row.style.display = text.includes(searchTerm) ? '' : 'none';
+      });
+    });
+    
+    // Utility functions
+    function showAlert(type, message) {
+      const alert = document.createElement('div');
+      alert.className = `alert alert-${type} alert-dismissible fade show`;
+      alert.style.position = 'fixed';
+      alert.style.top = '20px';
+      alert.style.right = '20px';
+      alert.style.zIndex = '9999';
+      alert.style.minWidth = '300px';
+      alert.innerHTML = `
+        ${message}
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+      `;
+      
+      document.body.appendChild(alert);
+      
+      setTimeout(() => {
+        alert.remove();
+      }, 5000);
+    }
+    
+    function handleError(error) {
+      showAlert('danger', 'Error: ' + error.message);
+    }
+  </script>
+</body>
+</html>

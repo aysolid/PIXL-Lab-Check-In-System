@@ -1,0 +1,295 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <base target="_top">
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Admin Login</title>
+  
+  <!-- Bootstrap 5 CSS -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  <!-- Bootstrap Icons -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css" rel="stylesheet">
+  
+  <style>
+    body {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    }
+    
+    .login-container {
+      width: 100%;
+      max-width: 450px;
+      padding: 20px;
+    }
+    
+    .login-card {
+      border-radius: 20px;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+      border: none;
+      overflow: hidden;
+    }
+    
+    .login-header {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      padding: 40px 30px;
+      text-align: center;
+    }
+    
+    .login-header i {
+      font-size: 4rem;
+      margin-bottom: 15px;
+    }
+    
+    .login-header h3 {
+      margin: 0;
+      font-weight: 600;
+    }
+    
+    .login-body {
+      padding: 40px 30px;
+      background: white;
+    }
+    
+    .form-control {
+      padding: 15px;
+      font-size: 1rem;
+      border-radius: 10px;
+      border: 2px solid #e5e7eb;
+    }
+    
+    .form-control:focus {
+      border-color: #667eea;
+      box-shadow: 0 0 0 0.2rem rgba(102, 126, 234, 0.25);
+    }
+    
+    .btn-login {
+      width: 100%;
+      padding: 15px;
+      font-size: 1.1rem;
+      font-weight: 600;
+      border-radius: 12px;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      border: none;
+      color: white;
+      transition: all 0.3s ease;
+    }
+    
+    .btn-login:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 10px 25px rgba(102, 126, 234, 0.4);
+    }
+    
+    .btn-back {
+      width: 100%;
+      padding: 12px;
+      margin-top: 15px;
+      background: #f3f4f6;
+      border: none;
+      border-radius: 10px;
+      color: #4b5563;
+      text-decoration: none;
+      display: block;
+      text-align: center;
+      transition: all 0.3s ease;
+    }
+    
+    .btn-back:hover {
+      background: #e5e7eb;
+      color: #1f2937;
+    }
+    
+    .alert {
+      border-radius: 10px;
+      padding: 15px;
+      border: none;
+    }
+    
+    .input-group-text {
+      background: white;
+      border: 2px solid #e5e7eb;
+      border-right: none;
+      border-radius: 10px 0 0 10px;
+    }
+    
+    .input-group .form-control {
+      border-left: none;
+      border-radius: 0 10px 10px 0;
+    }
+    
+    .password-toggle {
+      cursor: pointer;
+      position: absolute;
+      right: 15px;
+      top: 50%;
+      transform: translateY(-50%);
+      color: #6b7280;
+      z-index: 10;
+    }
+    
+    .password-wrapper {
+      position: relative;
+    }
+  </style>
+</head>
+<body>
+  <div class="login-container">
+    <div class="login-card">
+      <div class="login-header">
+        <i class="bi bi-shield-lock-fill"></i>
+        <h3>Admin Login</h3>
+        <p style="margin: 10px 0 0 0; font-size: 0.9rem; opacity: 0.9;">
+          Lab Check-In System Administration
+        </p>
+      </div>
+      
+      <div class="login-body">
+        <form id="loginForm">
+          <div class="mb-3">
+            <label for="username" class="form-label">
+              <i class="bi bi-person-fill"></i> Username
+            </label>
+            <div class="input-group">
+              <span class="input-group-text">
+                <i class="bi bi-person"></i>
+              </span>
+              <input 
+                type="text" 
+                class="form-control" 
+                id="username" 
+                placeholder="Enter admin username"
+                required
+                autocomplete="username"
+              >
+            </div>
+          </div>
+          
+          <div class="mb-3">
+            <label for="password" class="form-label">
+              <i class="bi bi-key-fill"></i> Password
+            </label>
+            <div class="password-wrapper">
+              <div class="input-group">
+                <span class="input-group-text">
+                  <i class="bi bi-lock"></i>
+                </span>
+                <input 
+                  type="password" 
+                  class="form-control" 
+                  id="password" 
+                  placeholder="Enter admin password"
+                  required
+                  autocomplete="current-password"
+                  style="padding-right: 45px;"
+                >
+              </div>
+              <i class="bi bi-eye password-toggle" id="togglePassword"></i>
+            </div>
+          </div>
+          
+          <div id="alertBox"></div>
+          
+          <button type="submit" class="btn btn-login" id="loginBtn">
+            <i class="bi bi-box-arrow-in-right"></i> Login
+          </button>
+          
+          <a href="<?= ScriptApp.getService().getUrl() ?>" class="btn-back">
+            <i class="bi bi-arrow-left"></i> Back to Check-In
+          </a>
+        </form>
+        
+        <div class="text-center mt-4">
+          <small class="text-muted">
+            <i class="bi bi-info-circle"></i> For authorized personnel only
+          </small>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Bootstrap 5 JS -->
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+  
+  <script>
+    // Password visibility toggle
+    document.getElementById('togglePassword').addEventListener('click', function() {
+      const passwordField = document.getElementById('password');
+      const type = passwordField.getAttribute('type') === 'password' ? 'text' : 'password';
+      passwordField.setAttribute('type', type);
+      
+      // Toggle icon
+      this.classList.toggle('bi-eye');
+      this.classList.toggle('bi-eye-slash');
+    });
+    
+    // Login form handler
+    document.getElementById('loginForm').addEventListener('submit', function(e) {
+      e.preventDefault();
+      
+      const username = document.getElementById('username').value.trim();
+      const password = document.getElementById('password').value;
+      
+      if (!username || !password) {
+        showAlert('warning', 'Please enter both username and password');
+        return;
+      }
+      
+      const loginBtn = document.getElementById('loginBtn');
+      loginBtn.disabled = true;
+      loginBtn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Logging in...';
+      
+      google.script.run
+        .withSuccessHandler(handleLoginSuccess)
+        .withFailureHandler(handleLoginError)
+        .validateAdmin(username, password);
+    });
+    
+    function handleLoginSuccess(result) {
+      const loginBtn = document.getElementById('loginBtn');
+      loginBtn.disabled = false;
+      loginBtn.innerHTML = '<i class="bi bi-box-arrow-in-right"></i> Login';
+      
+      if (result.success) {
+        showAlert('success', 'Login successful! Redirecting...');
+        
+        // Redirect to admin dashboard
+        setTimeout(function() {
+          window.location.href = '<?= ScriptApp.getService().getUrl() ?>?page=dashboard';
+        }, 1000);
+      } else {
+        showAlert('danger', result.message);
+      }
+    }
+    
+    function handleLoginError(error) {
+      const loginBtn = document.getElementById('loginBtn');
+      loginBtn.disabled = false;
+      loginBtn.innerHTML = '<i class="bi bi-box-arrow-in-right"></i> Login';
+      
+      showAlert('danger', 'Error: ' + error.message);
+    }
+    
+    function showAlert(type, message) {
+      const alertBox = document.getElementById('alertBox');
+      const iconMap = {
+        success: 'check-circle-fill',
+        danger: 'x-circle-fill',
+        warning: 'exclamation-triangle-fill',
+        info: 'info-circle-fill'
+      };
+      
+      alertBox.innerHTML = `
+        <div class="alert alert-${type} alert-dismissible fade show" role="alert">
+          <i class="bi bi-${iconMap[type]}"></i> ${message}
+          <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+      `;
+    }
+  </script>
+</body>
+</html>
