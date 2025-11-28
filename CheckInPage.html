@@ -278,48 +278,38 @@
           <div class="text-center mb-4">
             <i class="bi bi-person icon-large text-success"></i>
             <h5>Guest Check-In</h5>
-            <p class="text-muted">Enter your name to check in/out</p>
+            <p class="text-muted">Enter your name and check in/out directly</p>
           </div>
-          
+
           <div class="mb-3">
             <label for="guestFirstName" class="form-label">First Name</label>
-            <input 
-              type="text" 
-              class="form-control" 
-              id="guestFirstName" 
+            <input
+              type="text"
+              class="form-control"
+              id="guestFirstName"
               placeholder="Enter your first name"
               autocomplete="off"
             >
           </div>
-          
+
           <div class="mb-3">
             <label for="guestLastName" class="form-label">Last Name</label>
-            <input 
-              type="text" 
-              class="form-control" 
-              id="guestLastName" 
+            <input
+              type="text"
+              class="form-control"
+              id="guestLastName"
               placeholder="Enter your last name"
               autocomplete="off"
             >
           </div>
-          
-          <button type="button" class="btn btn-custom" id="guestLoginBtn" style="background: #6366f1; border: none;">
-            <i class="bi bi-person-check"></i> Guest Login
-          </button>
-          
-          <div id="guestStatusInfo" class="info-box" style="display: none;">
-            <p><strong>Name:</strong> <span id="guestName"></span></p>
-            <p><strong>Status:</strong> <span id="guestStatus"></span></p>
-            <p><strong>Check-In Time:</strong> <span id="guestCheckInTime"></span></p>
-          </div>
-          
+
           <div id="guestAlertBox"></div>
-          
-          <div id="guestActionButtons" style="display: none;">
+
+          <div id="guestActionButtons">
             <button type="button" class="btn btn-custom btn-checkin" id="guestCheckInBtn">
               <i class="bi bi-box-arrow-in-right"></i> Check In
             </button>
-            
+
             <button type="button" class="btn btn-custom btn-checkout" id="guestCheckOutBtn">
               <i class="bi bi-box-arrow-left"></i> Check Out
             </button>
@@ -366,18 +356,17 @@
       document.getElementById('staffLoginBtn').addEventListener('click', handleStaffLogin);
       document.getElementById('staffCheckInBtn').addEventListener('click', handleStaffCheckIn);
       document.getElementById('staffCheckOutBtn').addEventListener('click', handleStaffCheckOut);
-      
-      // Guest login
-      document.getElementById('guestLoginBtn').addEventListener('click', handleGuestLogin);
+
+      // Guest check-in/out (no login needed)
       document.getElementById('guestCheckInBtn').addEventListener('click', handleGuestCheckIn);
       document.getElementById('guestCheckOutBtn').addEventListener('click', handleGuestCheckOut);
-      
+
       // Enter key handlers
       document.getElementById('staffId').addEventListener('keypress', function(e) {
         if (e.key === 'Enter') handleStaffLogin();
       });
       document.getElementById('guestLastName').addEventListener('keypress', function(e) {
-        if (e.key === 'Enter') handleGuestLogin();
+        if (e.key === 'Enter') handleGuestCheckIn();
       });
     }
     
@@ -407,15 +396,12 @@
       document.getElementById('staffActionButtons').style.display = 'none';
       document.getElementById('staffAlertBox').innerHTML = '';
       document.getElementById('staffLoginBtn').style.display = 'block';
-      
+
       // Reset guest form
       document.getElementById('guestFirstName').value = '';
       document.getElementById('guestLastName').value = '';
-      document.getElementById('guestStatusInfo').style.display = 'none';
-      document.getElementById('guestActionButtons').style.display = 'none';
       document.getElementById('guestAlertBox').innerHTML = '';
-      document.getElementById('guestLoginBtn').style.display = 'block';
-      
+
       currentStaffId = '';
       currentGuestFirstName = '';
       currentGuestLastName = '';
@@ -598,125 +584,57 @@
     }
     
     // ===== GUEST HANDLERS =====
-    function handleGuestLogin() {
+    function handleGuestCheckIn() {
       const firstName = document.getElementById('guestFirstName').value.trim();
       const lastName = document.getElementById('guestLastName').value.trim();
-      const loginBtn = document.getElementById('guestLoginBtn');
-      
+      const checkInBtn = document.getElementById('guestCheckInBtn');
+
       if (!firstName || !lastName) {
         showGuestAlert('warning', 'Please enter both first and last name');
         return;
       }
-      
-      currentGuestFirstName = firstName;
-      currentGuestLastName = lastName;
-      loginBtn.disabled = true;
-      loginBtn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Verifying...';
-      
-      google.script.run
-        .withSuccessHandler(handleGuestLoginSuccess)
-        .withFailureHandler(handleGuestLoginError)
-        .verifyGuestAndGetStatus(firstName, lastName);
-    }
-    
-    function handleGuestLoginSuccess(result) {
-      const loginBtn = document.getElementById('guestLoginBtn');
-      
-      loginBtn.disabled = false;
-      loginBtn.innerHTML = '<i class="bi bi-person-check"></i> Guest Login';
-      loginBtn.style.display = 'block';
-      
-      if (!result.success) {
-        showGuestAlert('danger', result.message);
-        return;
-      }
-      
-      document.getElementById('guestName').textContent = result.guestName;
-      
-      if (result.isCheckedIn) {
-        document.getElementById('guestStatus').innerHTML = '<span class="badge bg-success">Checked In</span>';
-        document.getElementById('guestCheckInTime').textContent = result.checkInTime;
-        isCheckedIn = true;
-      } else if (result.alreadyCompletedToday) {
-        document.getElementById('guestStatus').innerHTML = '<span class="badge bg-info">Completed</span>';
-        document.getElementById('guestCheckInTime').textContent = result.checkInTime + ' (Checked out at ' + result.checkOutTime + ')';
-        isCheckedIn = false;
-      } else {
-        document.getElementById('guestStatus').innerHTML = '<span class="badge bg-secondary">Not Checked In</span>';
-        document.getElementById('guestCheckInTime').textContent = 'Not checked in today';
-        isCheckedIn = false;
-      }
-      
-      document.getElementById('guestStatusInfo').style.display = 'block';
-      document.getElementById('guestActionButtons').style.display = 'block';
-      
-      updateGuestButtonStates(result.alreadyCompletedToday);
-      
-      if (result.isCheckedIn) {
-        showGuestAlert('info', '✓ You are checked in. Click "Check Out" when leaving.');
-      } else if (result.alreadyCompletedToday) {
-        showGuestAlert('success', '✓ You completed your check-in/out for today.');
-      } else {
-        showGuestAlert('info', '✓ Welcome! Ready to check in.');
-      }
-    }
-    
-    function handleGuestLoginError(error) {
-      const loginBtn = document.getElementById('guestLoginBtn');
-      loginBtn.disabled = false;
-      loginBtn.innerHTML = '<i class="bi bi-person-check"></i> Guest Login';
-      showGuestAlert('danger', 'Error: ' + error.message);
-    }
-    
-    function updateGuestButtonStates(alreadyCompleted = false) {
-      const checkInBtn = document.getElementById('guestCheckInBtn');
-      const checkOutBtn = document.getElementById('guestCheckOutBtn');
-      
-      if (alreadyCompleted) {
-        checkInBtn.disabled = true;
-        checkOutBtn.disabled = true;
-      } else if (isCheckedIn) {
-        checkInBtn.disabled = true;
-        checkOutBtn.disabled = false;
-      } else {
-        checkInBtn.disabled = false;
-        checkOutBtn.disabled = true;
-      }
-    }
-    
-    function handleGuestCheckIn() {
-      const checkInBtn = document.getElementById('guestCheckInBtn');
-      
+
       checkInBtn.disabled = true;
       checkInBtn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Checking In...';
-      
+
       google.script.run
         .withSuccessHandler(function(result) {
           checkInBtn.disabled = false;
           checkInBtn.innerHTML = '<i class="bi bi-box-arrow-in-right"></i> Check In';
-          
+
           if (result.success) {
-            showGuestAlert('success', result.message);
+            showGuestAlert('success', result.message + '<br><small>You will be automatically checked out after 2 hours.</small>');
             setTimeout(() => resetForms(), 3000);
           } else {
             showGuestAlert('danger', result.message);
           }
         })
-        .withFailureHandler(handleGuestLoginError)
-        .guestCheckIn(currentGuestFirstName, currentGuestLastName, qrToken);
+        .withFailureHandler(function(error) {
+          checkInBtn.disabled = false;
+          checkInBtn.innerHTML = '<i class="bi bi-box-arrow-in-right"></i> Check In';
+          showGuestAlert('danger', 'Error: ' + error.message);
+        })
+        .guestCheckIn(firstName, lastName, qrToken);
     }
-    
+
     function handleGuestCheckOut() {
+      const firstName = document.getElementById('guestFirstName').value.trim();
+      const lastName = document.getElementById('guestLastName').value.trim();
       const checkOutBtn = document.getElementById('guestCheckOutBtn');
-      
+
+      if (!firstName || !lastName) {
+        showGuestAlert('warning', 'Please enter both first and last name');
+        return;
+      }
+
       checkOutBtn.disabled = true;
       checkOutBtn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Checking Out...';
-      
+
       google.script.run
         .withSuccessHandler(function(result) {
           checkOutBtn.disabled = false;
           checkOutBtn.innerHTML = '<i class="bi bi-box-arrow-left"></i> Check Out';
-          
+
           if (result.success) {
             showGuestAlert('success', result.message);
             setTimeout(() => resetForms(), 3000);
@@ -724,8 +642,12 @@
             showGuestAlert('danger', result.message);
           }
         })
-        .withFailureHandler(handleGuestLoginError)
-        .guestCheckOut(currentGuestFirstName, currentGuestLastName);
+        .withFailureHandler(function(error) {
+          checkOutBtn.disabled = false;
+          checkOutBtn.innerHTML = '<i class="bi bi-box-arrow-left"></i> Check Out';
+          showGuestAlert('danger', 'Error: ' + error.message);
+        })
+        .guestCheckOut(firstName, lastName);
     }
     
     function showGuestAlert(type, message) {
