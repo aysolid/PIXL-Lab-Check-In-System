@@ -2180,3 +2180,122 @@ function guestCheckOut(firstName, lastName) {
     return { success: false, message: "Error: " + error.message };
   }
 }
+
+/**
+ * Automatically check out guests who have been checked in for 2+ hours
+ * This function runs periodically (every 30 minutes) via a time-based trigger
+ */
+function autoCheckOutGuests() {
+  try {
+    Logger.log('Auto guest check-out triggered at: ' + new Date());
+
+    const ss = SpreadsheetApp.getActive();
+    const logSheet = ss.getSheetByName(CHECKIN_LOG_SHEET);
+
+    if (!logSheet) {
+      Logger.log('ERROR: Log sheet not found');
+      return { success: false, message: "Log sheet not found" };
+    }
+
+    logSheet.getRange('G:G').setNumberFormat('@STRING@');
+
+    const data = logSheet.getDataRange().getValues();
+    const now = new Date();
+    const timeStr = Utilities.formatDate(now, Session.getScriptTimeZone(), DATE_TIME_FORMAT);
+    const timeText = "'" + timeStr;
+
+    let count = 0;
+    const checkedOutGuests = [];
+    const twoHoursInMs = 2 * 60 * 60 * 1000; // 2 hours in milliseconds
+
+    // Iterate through logs from bottom to top (most recent first)
+    for (let i = data.length - 1; i >= 1; i--) {
+      const logStaffId = String(data[i][1]).trim();
+      const logStatus = data[i][8];
+
+      // Only process guests who are currently checked in
+      if (logStaffId.startsWith('GUEST-') && logStatus === 'Checked In') {
+        let checkInTimeValue = data[i][5];
+
+        if (typeof checkInTimeValue === 'string') {
+          checkInTimeValue = checkInTimeValue.replace(/^'/, '');
+        }
+        if (checkInTimeValue instanceof Date) {
+          checkInTimeValue = Utilities.formatDate(checkInTimeValue, Session.getScriptTimeZone(), DATE_TIME_FORMAT);
+        }
+
+        const checkInTime = new Date(checkInTimeValue);
+        const timeDiff = now - checkInTime;
+
+        // Check if guest has been checked in for 2+ hours
+        if (timeDiff >= twoHoursInMs) {
+          const duration = timeDiff / (1000 * 60 * 60); // Convert to hours
+
+          // Update the row with checkout information
+          logSheet.getRange(i + 1, 7).setValue(timeText); // Check-Out Time
+          logSheet.getRange(i + 1, 8).setValue(duration.toFixed(2)); // Duration
+          logSheet.getRange(i + 1, 9).setValue('Checked Out'); // Status
+          logSheet.getRange(i + 1, 10).setValue('Auto checked out after 2 hours'); // Notes
+
+          count++;
+          checkedOutGuests.push({
+            name: data[i][2],
+            id: logStaffId,
+            checkInTime: checkInTimeValue,
+            checkOutTime: timeStr,
+            duration: duration.toFixed(2)
+          });
+
+          Logger.log('Auto checked out guest: ' + data[i][2] + ' (' + logStaffId + ') after ' + duration.toFixed(2) + ' hours');
+        }
+      }
+    }
+
+    Logger.log('Auto guest check-out complete. Total: ' + count + ' guests');
+
+    return {
+      success: true,
+      message: `Auto checked out ${count} guest(s) who exceeded 2 hours`,
+      count: count,
+      guests: checkedOutGuests,
+      checkoutTime: timeStr
+    };
+
+  } catch (error) {
+    Logger.log('ERROR in autoCheckOutGuests: ' + error.message);
+    return { success: false, message: "Error: " + error.message };
+  }
+}
+
+/**
+ * Setup automatic guest check-out trigger - RUN THIS ONCE
+ * Runs every 30 minutes to check and auto-checkout guests who exceeded 2 hours
+ */
+function setupAutoGuestCheckOut() {
+  try {
+    // Delete existing auto-guest-checkout triggers
+    const triggers = ScriptApp.getProjectTriggers();
+    for (let i = 0; i < triggers.length; i++) {
+      if (triggers[i].getHandlerFunction() === 'autoCheckOutGuests') {
+        ScriptApp.deleteTrigger(triggers[i]);
+      }
+    }
+
+    // Create trigger that runs every 30 minutes
+    ScriptApp.newTrigger('autoCheckOutGuests')
+      .timeBased()
+      .everyMinutes(30)
+      .create();
+
+    Logger.log("Auto guest check-out trigger created successfully! Runs every 30 minutes.");
+
+    return {
+      success: true,
+      message: "Auto guest check-out trigger set up successfully. Will run every 30 minutes to check guests."
+    };
+
+  } catch (error) {
+    Logger.log("Error setting up auto guest check-out trigger: " + error.message);
+    return { success: false, message: "Error: " + error.message };
+  }
+}
