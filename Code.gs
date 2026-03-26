@@ -2311,7 +2311,8 @@ function setupAutoGuestCheckOut() {
 // BACKDOOR SCHEDULER CONSOLE
 // ============================================
 
-const BACKDOOR_SCHEDULE_SHEET = "Backdoor Schedules";
+const BACKDOOR_SCHEDULE_SHEET = "Schedules";
+const LEGACY_BACKDOOR_SCHEDULE_SHEET = "Backdoor Schedules";
 const BACKDOOR_USERNAME = "backdoor";
 const BACKDOOR_PASSWORD = "backdoor8080";
 
@@ -2329,6 +2330,14 @@ function validateBackdoorCredentials(username, password) {
 function ensureBackdoorScheduleSheet() {
   const ss = SpreadsheetApp.getActive();
   let sheet = ss.getSheetByName(BACKDOOR_SCHEDULE_SHEET);
+
+  if (!sheet) {
+    const legacySheet = ss.getSheetByName(LEGACY_BACKDOOR_SCHEDULE_SHEET);
+    if (legacySheet) {
+      legacySheet.setName(BACKDOOR_SCHEDULE_SHEET);
+      sheet = legacySheet;
+    }
+  }
 
   if (!sheet) {
     sheet = ss.insertSheet(BACKDOOR_SCHEDULE_SHEET);
