@@ -1784,19 +1784,32 @@ function manualCheckOut(staffId, dateTime) {
     if (!staffResult.success) {
       return { success: false, message: "Invalid Staff ID" };
     }
-    
+
     const ss = SpreadsheetApp.getActive();
     const logSheet = ss.getSheetByName(CHECKIN_LOG_SHEET);
+
+    if (!logSheet) {
+      return { success: false, message: "No active check-in found" };
+    }
+
     const data = logSheet.getDataRange().getValues();
-    
+
     logSheet.getRange('G:G').setNumberFormat('@STRING@');
-    
+
     const timestamp = new Date(dateTime);
+    if (isNaN(timestamp.getTime())) {
+      return { success: false, message: "Invalid checkout time" };
+    }
+
     const timeStr = Utilities.formatDate(timestamp, Session.getScriptTimeZone(), DATE_TIME_FORMAT);
     const timeText = "'" + timeStr;
-    
+    const normalizedStaffId = String(staffId).trim();
+
     for (let i = data.length - 1; i >= 1; i--) {
-      if (data[i][1] === staffId && data[i][8] === 'Checked In') {
+      const logStaffId = String(data[i][1]).trim();
+      const logStatus = String(data[i][8]).trim();
+
+      if (logStaffId === normalizedStaffId && logStatus === 'Checked In') {
         let checkInTimeValue = data[i][5];
         if (typeof checkInTimeValue === 'string') {
           checkInTimeValue = checkInTimeValue.replace(/^'/, '');
@@ -1804,21 +1817,21 @@ function manualCheckOut(staffId, dateTime) {
         if (checkInTimeValue instanceof Date) {
           checkInTimeValue = Utilities.formatDate(checkInTimeValue, Session.getScriptTimeZone(), DATE_TIME_FORMAT);
         }
-        
+
         const checkInTime = new Date(checkInTimeValue);
         const duration = (timestamp - checkInTime) / (1000 * 60 * 60);
-        
+
         logSheet.getRange(i + 1, 7).setValue(timeText);
         logSheet.getRange(i + 1, 8).setValue(duration.toFixed(2));
         logSheet.getRange(i + 1, 9).setValue('Checked Out');
         logSheet.getRange(i + 1, 10).setValue('Manual check-out by admin');
-        
+
         return { success: true, message: "Manual check-out recorded" };
       }
     }
-    
+
     return { success: false, message: "No active check-in found" };
-    
+
   } catch (error) {
     return { success: false, message: "Error: " + error.message };
   }
