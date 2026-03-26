@@ -1721,20 +1721,28 @@ function generateComprehensiveReport(reportType, staffId, startDate, endDate, si
         break;
         
       case 'monthly':
-        const now = new Date();
-        const firstDay = new Date(now.getFullYear(), now.getMonth(), 1);
+        let monthAnchor = new Date();
+
+        if (singleDate) {
+          const parsedMonth = new Date(singleDate + '-01T00:00:00');
+          if (!isNaN(parsedMonth.getTime())) {
+            monthAnchor = parsedMonth;
+          }
+        }
+
+        const firstDay = new Date(monthAnchor.getFullYear(), monthAnchor.getMonth(), 1);
         firstDay.setHours(0, 0, 0, 0);
-        
-        const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+
+        const lastDay = new Date(monthAnchor.getFullYear(), monthAnchor.getMonth() + 1, 0);
         lastDay.setHours(23, 59, 59, 999);
-        
+
         const monthStart = Utilities.formatDate(firstDay, timezone, DATE_FORMAT);
         const monthEnd = Utilities.formatDate(lastDay, timezone, DATE_FORMAT);
-        
+
         Logger.log('Monthly Report - Start: ' + monthStart + ', End: ' + monthEnd);
-        
+
         result = getLogsByDateRange(monthStart, monthEnd);
-        result.periodDescription = now.toLocaleString('default', { month: 'long', year: 'numeric' });
+        result.periodDescription = Utilities.formatDate(firstDay, timezone, 'MMMM yyyy');
         break;
         
       case 'custom':
@@ -1743,17 +1751,17 @@ function generateComprehensiveReport(reportType, staffId, startDate, endDate, si
         break;
         
       case 'staff':
-        // SIMPLIFIED: Always get ALL records for staff
-        Logger.log('Staff Report - Getting ALL records for staff: ' + staffId);
-        
-        // Use very wide date range to get everything
-        const allTimeStart = '2000-01-01';
-        const allTimeEnd = Utilities.formatDate(new Date(), timezone, DATE_FORMAT);
-        
-        Logger.log('Date range: ' + allTimeStart + ' to ' + allTimeEnd);
-        
-        result = getLogsByStaff(staffId, allTimeStart, allTimeEnd);
-        result.periodDescription = 'All Time Records';
+        if (!staffId) {
+          return { success: false, message: 'Staff ID is required for staff report' };
+        }
+
+        const staffStart = startDate || '2000-01-01';
+        const staffEnd = endDate || Utilities.formatDate(new Date(), timezone, DATE_FORMAT);
+
+        Logger.log('Staff Report - staffId: ' + staffId + ', start: ' + staffStart + ', end: ' + staffEnd);
+
+        result = getLogsByStaff(staffId, staffStart, staffEnd);
+        result.periodDescription = staffStart + ' to ' + staffEnd;
         break;
         
       default:

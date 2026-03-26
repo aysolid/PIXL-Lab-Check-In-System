@@ -425,6 +425,11 @@
                         </select>
                       </div>
                       
+                      <div class="mb-3" id="monthSelectDiv" style="display: none;">
+                        <label class="form-label">Select Month</label>
+                        <input type="month" class="form-control" id="reportMonth">
+                      </div>
+
                       <div class="mb-3" id="staffSelectDiv" style="display: none;">
                         <label class="form-label">Select Staff</label>
                         <select class="form-select" id="reportStaffId">
@@ -666,6 +671,7 @@
   document.getElementById('reportDate').value = today;
   document.getElementById('reportStartDate').value = today;
   document.getElementById('reportEndDate').value = today;
+  document.getElementById('reportMonth').value = today.slice(0, 7);
   
   // Set manual entry datetime
   const now = new Date();
@@ -678,10 +684,7 @@
     
     // Report type change handler
     document.getElementById('reportType').addEventListener('change', function() {
-      const type = this.value;
-      document.getElementById('staffSelectDiv').style.display = (type === 'staff') ? 'block' : 'none';
-      document.getElementById('dateRangeDiv').style.display = (type === 'custom') ? 'block' : 'none';
-      document.getElementById('singleDateDiv').style.display = (type === 'daily') ? 'block' : 'none';
+      updateReportForm();
     });
     
     // Refresh dashboard data
@@ -1007,37 +1010,40 @@ function updateReportForm() {
   const staffSelectDiv = document.getElementById('staffSelectDiv');
   const dateRangeDiv = document.getElementById('dateRangeDiv');
   const singleDateDiv = document.getElementById('singleDateDiv');
+  const monthSelectDiv = document.getElementById('monthSelectDiv');
   const reportHelp = document.getElementById('reportHelp');
-  
+
   // Hide all optional fields first
   staffSelectDiv.style.display = 'none';
   dateRangeDiv.style.display = 'none';
   singleDateDiv.style.display = 'none';
-  
+  monthSelectDiv.style.display = 'none';
+
   // Show appropriate fields based on report type
   switch(reportType) {
     case 'daily':
       singleDateDiv.style.display = 'block';
       reportHelp.innerHTML = '<small><i class="bi bi-info-circle"></i> View all check-ins for a specific date</small>';
       break;
-      
+
     case 'weekly':
       reportHelp.innerHTML = '<small><i class="bi bi-info-circle"></i> View check-ins for the current week (Monday to Sunday)</small>';
       break;
-      
+
     case 'monthly':
-      reportHelp.innerHTML = '<small><i class="bi bi-info-circle"></i> View check-ins for the current month</small>';
+      monthSelectDiv.style.display = 'block';
+      reportHelp.innerHTML = '<small><i class="bi bi-info-circle"></i> Select the month you want to generate</small>';
       break;
-      
+
     case 'custom':
       dateRangeDiv.style.display = 'block';
       reportHelp.innerHTML = '<small><i class="bi bi-info-circle"></i> Select a custom date range</small>';
       break;
-      
+
     case 'staff':
       staffSelectDiv.style.display = 'block';
-      // Don't show date range - we'll get ALL records
-      reportHelp.innerHTML = '<small><i class="bi bi-info-circle"></i> <strong>View ALL records for the selected staff member (all time)</strong></small>';
+      dateRangeDiv.style.display = 'block';
+      reportHelp.innerHTML = '<small><i class="bi bi-info-circle"></i> Select staff + start date + end date for individual report range</small>';
       break;
   }
 }
@@ -1145,7 +1151,7 @@ function updateReportForm() {
             selects.forEach(selectId => {
               const select = document.getElementById(selectId);
               const currentValue = select.value;
-              let html = selectId === 'reportStaffId' ? '<option value="">All Staff</option>' : '<option value="">Select Staff</option>';
+              let html = selectId === 'reportStaffId' ? '<option value="">Select Staff Member</option>' : '<option value="">Select Staff</option>';
               
               result.staff.forEach(staff => {
                 html += `<option value="${staff.id}">${staff.name} (${staff.id})</option>`;
@@ -1174,6 +1180,12 @@ function updateReportForm() {
               showAlert('warning', 'Please select a date');
               return;
             }
+          } else if (reportType === 'monthly') {
+            singleDate = document.getElementById('reportMonth').value;
+            if (!singleDate) {
+              showAlert('warning', 'Please select a month');
+              return;
+            }
           } else if (reportType === 'custom') {
             startDate = document.getElementById('reportStartDate').value;
             endDate = document.getElementById('reportEndDate').value;
@@ -1186,9 +1198,13 @@ function updateReportForm() {
               showAlert('warning', 'Please select a staff member');
               return;
             }
-            // For staff report - use NULL dates to get ALL records
-            startDate = null;
-            endDate = null;
+
+            startDate = document.getElementById('reportStartDate').value;
+            endDate = document.getElementById('reportEndDate').value;
+            if (!startDate || !endDate) {
+              showAlert('warning', 'Please select start and end dates for staff report');
+              return;
+            }
           }
           
           console.log('Generating report:', {
