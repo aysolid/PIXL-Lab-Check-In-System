@@ -151,13 +151,24 @@
             <input id="recEnd" type="date" class="form-control">
           </div>
           <div class="col-md-3">
-            <label class="form-label">Check-In Time</label>
-            <input id="recCheckInTime" type="time" class="form-control" value="09:00">
+            <label class="form-label">Check-In Start</label>
+            <input id="recCheckInStart" type="time" class="form-control" value="09:00">
           </div>
           <div class="col-md-3">
-            <label class="form-label">Check-Out Time</label>
-            <input id="recCheckOutTime" type="time" class="form-control" value="17:00">
+            <label class="form-label">Check-In End</label>
+            <input id="recCheckInEnd" type="time" class="form-control" value="10:00">
           </div>
+          <div class="col-md-3">
+            <label class="form-label">Check-Out Start</label>
+            <input id="recCheckOutStart" type="time" class="form-control" value="16:00">
+          </div>
+          <div class="col-md-3">
+            <label class="form-label">Check-Out End</label>
+            <input id="recCheckOutEnd" type="time" class="form-control" value="18:00">
+          </div>
+        </div>
+        <div class="small-muted mt-2">
+          The generator will choose a random time inside each range for every selected day.
         </div>
         <div class="mt-3">
           <label class="form-label">Repeat on</label>
@@ -341,8 +352,10 @@
     function generateRecurringEntries() {
       const start = document.getElementById('recStart').value;
       const end = document.getElementById('recEnd').value;
-      const checkInTime = document.getElementById('recCheckInTime').value;
-      const checkOutTime = document.getElementById('recCheckOutTime').value;
+      const checkInStart = document.getElementById('recCheckInStart').value;
+      const checkInEnd = document.getElementById('recCheckInEnd').value || checkInStart;
+      const checkOutStart = document.getElementById('recCheckOutStart').value;
+      const checkOutEnd = document.getElementById('recCheckOutEnd').value || checkOutStart;
       const notes = document.getElementById('recNotes').value.trim();
 
       if (!start || !end) {
@@ -366,25 +379,40 @@
         return;
       }
 
+      const checkInRange = parseTimeRange(checkInStart, checkInEnd, 'check-in');
+      if (checkInRange.error) {
+        showAlert('warning', checkInRange.error);
+        return;
+      }
+
+      const checkOutRange = parseTimeRange(checkOutStart, checkOutEnd, 'check-out');
+      if (checkOutRange.error) {
+        showAlert('warning', checkOutRange.error);
+        return;
+      }
+
       const cursor = new Date(startDate);
       let generated = 0;
 
       while (cursor <= endDate) {
         if (selectedDays.includes(cursor.getDay())) {
           const datePart = cursor.toISOString().slice(0, 10);
-          if (checkInTime) {
+          const randomCheckInTime = checkInRange.enabled ? randomTimeInRange(checkInRange.start, checkInRange.end) : null;
+          const randomCheckOutTime = checkOutRange.enabled ? randomTimeInRange(checkOutRange.start, checkOutRange.end) : null;
+
+          if (randomCheckInTime) {
             pendingEntries.push({
               action: 'Check-In',
-              scheduledDateTime: `${datePart}T${checkInTime}`,
+              scheduledDateTime: `${datePart}T${randomCheckInTime}`,
               notes: notes || 'Recurring batch check-in'
             });
             generated++;
           }
 
-          if (checkOutTime) {
+          if (randomCheckOutTime) {
             pendingEntries.push({
               action: 'Check-Out',
-              scheduledDateTime: `${datePart}T${checkOutTime}`,
+              scheduledDateTime: `${datePart}T${randomCheckOutTime}`,
               notes: notes || 'Recurring batch check-out'
             });
             generated++;
@@ -396,6 +424,52 @@
 
       renderPending();
       showAlert('success', `Generated ${generated} recurring entries into pending queue.`);
+    }
+
+    function parseTimeRange(startValue, endValue, label) {
+      if (!startValue && !endValue) {
+        return { enabled: false };
+      }
+
+      if (!startValue || !endValue) {
+        return { error: `Please provide both start and end ${label} times.` };
+      }
+
+      const start = timeToMinutes(startValue);
+      const end = timeToMinutes(endValue);
+
+      if (start === null || end === null) {
+        return { error: `Invalid ${label} time format.` };
+      }
+
+      if (end < start) {
+        return { error: `For ${label}, end time must be later than or equal to start time.` };
+      }
+
+      return { enabled: true, start: start, end: end };
+    }
+
+    function timeToMinutes(value) {
+      if (!value || !value.includes(':')) {
+        return null;
+      }
+
+      const parts = value.split(':');
+      const hours = parseInt(parts[0], 10);
+      const minutes = parseInt(parts[1], 10);
+
+      if (isNaN(hours) || isNaN(minutes)) {
+        return null;
+      }
+
+      return (hours * 60) + minutes;
+    }
+
+    function randomTimeInRange(startMinutes, endMinutes) {
+      const selected = Math.floor(Math.random() * ((endMinutes - startMinutes) + 1)) + startMinutes;
+      const hours = Math.floor(selected / 60);
+      const minutes = selected % 60;
+      return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
     }
 
     function renderPending() {
