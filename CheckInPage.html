@@ -225,7 +225,7 @@
             <i class="bi bi-person-badge"></i>
             <div>Staff Member</div>
           </div>
-          <div class="user-type-btn" id="guestBtn" onclick="switchToGuest()">
+          <div class="user-type-btn" id="guestBtn" onclick="switchToGuest()" style="display:none;">
             <i class="bi bi-person"></i>
             <div>Guest</div>
           </div>
@@ -425,7 +425,7 @@
           <div class="card-body text-center">
             <i class="bi bi-check-circle-fill icon-large text-success"></i>
             <h5 class="text-success">Access Verified!</h5>
-            <p class="text-muted">Select Staff or Guest to continue</p>
+            <p class="text-muted">Staff access verified. Use Guest QR for guest check-in.</p>
           </div>
         `;
         checkInCard.style.display = 'block';
