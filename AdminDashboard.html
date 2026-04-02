@@ -358,7 +358,10 @@
                           <i class="bi bi-refresh"></i> Refresh Display
                         </button>
                         <button class="btn btn-info btn-custom" onclick="downloadQR()">
-                          <i class="bi bi-download"></i> Download QR Code
+                          <i class="bi bi-download"></i> Download Staff QR Code
+                        </button>
+                        <button class="btn btn-dark btn-custom" onclick="downloadGuestQR()">
+                          <i class="bi bi-download"></i> Download Guest QR Code (Permanent)
                         </button>
                         <button class="btn btn-warning btn-custom" onclick="printQR()">
                           <i class="bi bi-printer"></i> Print QR Code
@@ -969,6 +972,37 @@ function downloadQR() {
   } else {
     showAlert('warning', 'Please load the QR code first');
   }
+}
+
+function downloadGuestQR() {
+  const btn = event.target.closest('button');
+  const originalHTML = btn.innerHTML;
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Preparing Guest QR...';
+
+  google.script.run
+    .withSuccessHandler(function(result) {
+      btn.disabled = false;
+      btn.innerHTML = originalHTML;
+
+      if (!result.success) {
+        showAlert('danger', result.message || 'Unable to generate guest QR');
+        return;
+      }
+
+      const link = document.createElement('a');
+      link.href = result.guestQrImageUrl;
+      link.download = 'lab-guest-qr-code.png';
+      link.click();
+
+      showAlert('success', 'Guest QR code downloaded. This QR is permanent for guest check-in.');
+    })
+    .withFailureHandler(function(error) {
+      btn.disabled = false;
+      btn.innerHTML = originalHTML;
+      showAlert('danger', 'Error: ' + error.message);
+    })
+    .getGuestPortalQRCode();
 }
 
 // Print QR code

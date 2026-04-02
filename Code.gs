@@ -46,6 +46,14 @@ function doGet(e) {
         .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL)
         .addMetaTag('viewport', 'width=device-width, initial-scale=1');
     }
+
+    if (page === 'guest') {
+      return HtmlService.createTemplateFromFile('GuestCheckInPage')
+        .evaluate()
+        .setTitle('Guest Check-In')
+        .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL)
+        .addMetaTag('viewport', 'width=device-width, initial-scale=1');
+    }
     
  
     // QR Display Page
@@ -1846,6 +1854,26 @@ function manualCheckOut(staffId, dateTime) {
 }
 
 // ============================================
+// GUEST ACCESS PORTAL
+// ============================================
+
+function getGuestPortalQRCode() {
+  try {
+    const webAppUrl = ScriptApp.getService().getUrl();
+    const guestCheckInUrl = webAppUrl + '?page=guest';
+    const guestQrImageUrl = 'https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=' + encodeURIComponent(guestCheckInUrl);
+
+    return {
+      success: true,
+      guestCheckInUrl: guestCheckInUrl,
+      guestQrImageUrl: guestQrImageUrl
+    };
+  } catch (error) {
+    return { success: false, message: 'Error: ' + error.message };
+  }
+}
+
+// ============================================
 // GUEST CHECK-IN/CHECK-OUT FUNCTIONS
 // ============================================
 
@@ -2035,96 +2063,111 @@ function guestCheckIn(firstName, lastName, qrToken) {
     if (!qrValidation.valid) {
       return { success: false, message: qrValidation.message };
     }
-    
-    // Normalize names
-    const fullName = firstName.trim() + ' ' + lastName.trim();
-    const searchName = fullName.toLowerCase();
-    
-    if (!firstName.trim() || !lastName.trim()) {
-      return { success: false, message: "Please enter both first and last name" };
-    }
-    
-    Logger.log('Guest check-in: ' + fullName);
-    
-    const today = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), DATE_FORMAT);
-    const ss = SpreadsheetApp.getActive();
-    const logSheet = ss.getSheetByName(CHECKIN_LOG_SHEET);
-    
-    // Check if guest already checked in today
-    if (logSheet) {
-      const data = logSheet.getDataRange().getValues();
-      
-      for (let i = 1; i < data.length; i++) {
-        const logStaffId = String(data[i][1]).trim();
-        const logName = String(data[i][2]).trim().toLowerCase();
-        let logDate = data[i][4];
-        
-        if (logDate instanceof Date) {
-          logDate = Utilities.formatDate(logDate, Session.getScriptTimeZone(), DATE_FORMAT);
-        } else {
-          logDate = String(logDate).replace(/^'/, '').trim();
-        }
-        
-        if (logStaffId.startsWith('GUEST-') && logName === searchName && logDate === today) {
-          return {
-            success: false,
-            message: "You are already checked in today."
-          };
-        }
-      }
-    }
-    
-    let finalLogSheet = logSheet;
-    if (!finalLogSheet) {
-      finalLogSheet = ss.insertSheet(CHECKIN_LOG_SHEET);
-      finalLogSheet.appendRow([
-        'Log ID', 'Staff ID', 'Staff Name', 'Action', 'Date', 'Check-In Time', 
-        'Check-Out Time', 'Duration (Hours)', 'Status', 'Notes'
-      ]);
-      finalLogSheet.getRange('A1:J1').setFontWeight('bold').setBackground('#FF9800').setFontColor('white');
-    }
-    
-    // FORCE plain text
-    finalLogSheet.getRange('E:E').setNumberFormat('@STRING@');
-    finalLogSheet.getRange('F:F').setNumberFormat('@STRING@');
-    finalLogSheet.getRange('G:G').setNumberFormat('@STRING@');
-    
-    const timestamp = new Date();
-    const dateStr = Utilities.formatDate(timestamp, Session.getScriptTimeZone(), DATE_FORMAT);
-    const timeStr = Utilities.formatDate(timestamp, Session.getScriptTimeZone(), DATE_TIME_FORMAT);
-    const guestId = generateGuestId();
-    const logId = 'LOG' + Date.now();
-    
-    const dateText = "'" + dateStr;
-    const timeText = "'" + timeStr;
-    
-    const newRow = finalLogSheet.getLastRow() + 1;
-    finalLogSheet.getRange(newRow, 1).setValue(logId);
-    finalLogSheet.getRange(newRow, 2).setValue(guestId);
-    finalLogSheet.getRange(newRow, 3).setValue(fullName);
-    finalLogSheet.getRange(newRow, 4).setValue('Check-In');
-    finalLogSheet.getRange(newRow, 5).setValue(dateText);
-    finalLogSheet.getRange(newRow, 6).setValue(timeText);
-    finalLogSheet.getRange(newRow, 7).setValue('');
-    finalLogSheet.getRange(newRow, 8).setValue('');
-    finalLogSheet.getRange(newRow, 9).setValue('Checked In');
-    finalLogSheet.getRange(newRow, 10).setValue('Guest check-in via QR code');
-    
-    Logger.log('Guest checked in successfully: ' + fullName + ' (' + guestId + ')');
-    
-    return { 
-      success: true, 
-      message: `Welcome ${fullName}! Checked in successfully as guest.`,
-      guestId: guestId,
-      guestName: fullName,
-      checkInTime: timeStr,
-      isGuest: true
-    };
-    
+
+    return processGuestCheckIn(firstName, lastName, 'Guest check-in via staff daily QR');
   } catch (error) {
     Logger.log('Error in guestCheckIn: ' + error.message);
     return { success: false, message: "Error: " + error.message };
   }
+}
+
+function guestPortalCheckIn(firstName, lastName) {
+  try {
+    return processGuestCheckIn(firstName, lastName, 'Guest check-in via guest portal QR');
+  } catch (error) {
+    Logger.log('Error in guestPortalCheckIn: ' + error.message);
+    return { success: false, message: "Error: " + error.message };
+  }
+}
+
+function processGuestCheckIn(firstName, lastName, note) {
+  // Normalize names
+  const safeFirstName = String(firstName || '').trim();
+  const safeLastName = String(lastName || '').trim();
+
+  if (!safeFirstName || !safeLastName) {
+    return { success: false, message: "Please enter both first and last name" };
+  }
+
+  const fullName = safeFirstName + ' ' + safeLastName;
+  const searchName = fullName.toLowerCase();
+
+  Logger.log('Guest check-in: ' + fullName);
+
+  const today = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), DATE_FORMAT);
+  const ss = SpreadsheetApp.getActive();
+  const logSheet = ss.getSheetByName(CHECKIN_LOG_SHEET);
+
+  // Check if guest already checked in today
+  if (logSheet) {
+    const data = logSheet.getDataRange().getValues();
+
+    for (let i = 1; i < data.length; i++) {
+      const logStaffId = String(data[i][1]).trim();
+      const logName = String(data[i][2]).trim().toLowerCase();
+      let logDate = data[i][4];
+
+      if (logDate instanceof Date) {
+        logDate = Utilities.formatDate(logDate, Session.getScriptTimeZone(), DATE_FORMAT);
+      } else {
+        logDate = String(logDate).replace(/^'/, '').trim();
+      }
+
+      if (logStaffId.startsWith('GUEST-') && logName === searchName && logDate === today) {
+        return {
+          success: false,
+          message: "You are already checked in today."
+        };
+      }
+    }
+  }
+
+  let finalLogSheet = logSheet;
+  if (!finalLogSheet) {
+    finalLogSheet = ss.insertSheet(CHECKIN_LOG_SHEET);
+    finalLogSheet.appendRow([
+      'Log ID', 'Staff ID', 'Staff Name', 'Action', 'Date', 'Check-In Time',
+      'Check-Out Time', 'Duration (Hours)', 'Status', 'Notes'
+    ]);
+    finalLogSheet.getRange('A1:J1').setFontWeight('bold').setBackground('#FF9800').setFontColor('white');
+  }
+
+  // FORCE plain text
+  finalLogSheet.getRange('E:E').setNumberFormat('@STRING@');
+  finalLogSheet.getRange('F:F').setNumberFormat('@STRING@');
+  finalLogSheet.getRange('G:G').setNumberFormat('@STRING@');
+
+  const timestamp = new Date();
+  const dateStr = Utilities.formatDate(timestamp, Session.getScriptTimeZone(), DATE_FORMAT);
+  const timeStr = Utilities.formatDate(timestamp, Session.getScriptTimeZone(), DATE_TIME_FORMAT);
+  const guestId = generateGuestId();
+  const logId = 'LOG' + Date.now();
+
+  const dateText = "'" + dateStr;
+  const timeText = "'" + timeStr;
+
+  const newRow = finalLogSheet.getLastRow() + 1;
+  finalLogSheet.getRange(newRow, 1).setValue(logId);
+  finalLogSheet.getRange(newRow, 2).setValue(guestId);
+  finalLogSheet.getRange(newRow, 3).setValue(fullName);
+  finalLogSheet.getRange(newRow, 4).setValue('Check-In');
+  finalLogSheet.getRange(newRow, 5).setValue(dateText);
+  finalLogSheet.getRange(newRow, 6).setValue(timeText);
+  finalLogSheet.getRange(newRow, 7).setValue('');
+  finalLogSheet.getRange(newRow, 8).setValue('');
+  finalLogSheet.getRange(newRow, 9).setValue('Checked In');
+  finalLogSheet.getRange(newRow, 10).setValue(note || 'Guest check-in');
+
+  Logger.log('Guest checked in successfully: ' + fullName + ' (' + guestId + ')');
+
+  return {
+    success: true,
+    message: `Welcome ${fullName}! Checked in successfully as guest.`,
+    guestId: guestId,
+    guestName: fullName,
+    checkInTime: timeStr,
+    isGuest: true
+  };
 }
 
 /**
