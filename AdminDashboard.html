@@ -208,6 +208,11 @@
             </a>
           </li>
           <li class="nav-item">
+            <a class="nav-link" href="<?= ScriptApp.getService().getUrl() ?>?page=research">
+              <i class="bi bi-journal-richtext"></i> Research Form
+            </a>
+          </li>
+          <li class="nav-item">
             <a class="nav-link" href="<?= ScriptApp.getService().getUrl() ?>?page=backdoor">
               <i class="bi bi-shield-lock"></i> Backdoor
             </a>
@@ -363,6 +368,9 @@
                         <button class="btn btn-dark btn-custom" onclick="downloadGuestQR()">
                           <i class="bi bi-download"></i> Download Guest QR Code (Permanent)
                         </button>
+                        <button class="btn btn-primary btn-custom" onclick="downloadResearchQR()">
+                          <i class="bi bi-download"></i> Download Research Form QR Code
+                        </button>
                         <button class="btn btn-warning btn-custom" onclick="printQR()">
                           <i class="bi bi-printer"></i> Print QR Code
                         </button>
@@ -425,6 +433,9 @@
                           <option value="monthly">Monthly Report</option>
                           <option value="custom">Custom Date Range</option>
                           <option value="staff">Individual Staff Report</option>
+                          <option value="research_daily">Research Daily Report</option>
+                          <option value="research_monthly">Research Monthly Report</option>
+                          <option value="research_custom">Research Date Range Report</option>
                         </select>
                       </div>
                       
@@ -1005,6 +1016,37 @@ function downloadGuestQR() {
     .getGuestPortalQRCode();
 }
 
+function downloadResearchQR() {
+  const btn = event.target.closest('button');
+  const originalHTML = btn.innerHTML;
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Preparing Research QR...';
+
+  google.script.run
+    .withSuccessHandler(function(result) {
+      btn.disabled = false;
+      btn.innerHTML = originalHTML;
+
+      if (!result.success) {
+        showAlert('danger', result.message || 'Unable to generate research QR');
+        return;
+      }
+
+      const link = document.createElement('a');
+      link.href = result.researchQrImageUrl;
+      link.download = 'lab-research-signin-qr-code.png';
+      link.click();
+
+      showAlert('success', 'Research form QR code downloaded.');
+    })
+    .withFailureHandler(function(error) {
+      btn.disabled = false;
+      btn.innerHTML = originalHTML;
+      showAlert('danger', 'Error: ' + error.message);
+    })
+    .getResearchFormQRCode();
+}
+
 // Print QR code
 function printQR() {
   const img = document.getElementById('qrImage');
@@ -1078,6 +1120,21 @@ function updateReportForm() {
       staffSelectDiv.style.display = 'block';
       dateRangeDiv.style.display = 'block';
       reportHelp.innerHTML = '<small><i class="bi bi-info-circle"></i> Select staff + start date + end date for individual report range</small>';
+      break;
+
+    case 'research_daily':
+      singleDateDiv.style.display = 'block';
+      reportHelp.innerHTML = '<small><i class="bi bi-info-circle"></i> View research sign-ins for a specific date</small>';
+      break;
+
+    case 'research_monthly':
+      monthSelectDiv.style.display = 'block';
+      reportHelp.innerHTML = '<small><i class="bi bi-info-circle"></i> Select month for research sign-in summary</small>';
+      break;
+
+    case 'research_custom':
+      dateRangeDiv.style.display = 'block';
+      reportHelp.innerHTML = '<small><i class="bi bi-info-circle"></i> Select custom date range for research sign-ins</small>';
       break;
   }
 }
@@ -1208,19 +1265,19 @@ function updateReportForm() {
           let startDate = null, endDate = null, singleDate = null;
           
           // Validate inputs based on report type
-          if (reportType === 'daily') {
+          if (reportType === 'daily' || reportType === 'research_daily') {
             singleDate = document.getElementById('reportDate').value;
             if (!singleDate) {
               showAlert('warning', 'Please select a date');
               return;
             }
-          } else if (reportType === 'monthly') {
+          } else if (reportType === 'monthly' || reportType === 'research_monthly') {
             singleDate = document.getElementById('reportMonth').value;
             if (!singleDate) {
               showAlert('warning', 'Please select a month');
               return;
             }
-          } else if (reportType === 'custom') {
+          } else if (reportType === 'custom' || reportType === 'research_custom') {
             startDate = document.getElementById('reportStartDate').value;
             endDate = document.getElementById('reportEndDate').value;
             if (!startDate || !endDate) {
@@ -1286,35 +1343,61 @@ function updateReportForm() {
         </div>
       `;
       
-      // Summary Statistics
-      html += `
-        <div class="row mb-3">
-          <div class="col-md-3">
-            <div class="stat-card text-center" style="border-left: 4px solid #3b82f6;">
-              <div class="stat-number text-primary">${result.totalLogs || 0}</div>
-              <div class="stat-label">Total Entries</div>
+      const isResearchReport = result.reportCategory === 'research' || String(result.reportType || '').startsWith('research_');
+
+      if (isResearchReport) {
+        html += `
+          <div class="row mb-3">
+            <div class="col-md-4">
+              <div class="stat-card text-center" style="border-left: 4px solid #3b82f6;">
+                <div class="stat-number text-primary">${result.totalLogs || 0}</div>
+                <div class="stat-label">Total Entries</div>
+              </div>
+            </div>
+            <div class="col-md-4">
+              <div class="stat-card text-center" style="border-left: 4px solid #10b981;">
+                <div class="stat-number text-success">${result.totalParticipants || 0}</div>
+                <div class="stat-label">Total Participants</div>
+              </div>
+            </div>
+            <div class="col-md-4">
+              <div class="stat-card text-center" style="border-left: 4px solid #8b5cf6;">
+                <div class="stat-number" style="color: #8b5cf6;">${result.uniqueInvestigators || 0}</div>
+                <div class="stat-label">Unique Investigators</div>
+              </div>
             </div>
           </div>
-          <div class="col-md-3">
-            <div class="stat-card text-center" style="border-left: 4px solid #10b981;">
-              <div class="stat-number text-success">${result.completedSessions || 0}</div>
-              <div class="stat-label">Completed Sessions</div>
+        `;
+      } else {
+        html += `
+          <div class="row mb-3">
+            <div class="col-md-3">
+              <div class="stat-card text-center" style="border-left: 4px solid #3b82f6;">
+                <div class="stat-number text-primary">${result.totalLogs || 0}</div>
+                <div class="stat-label">Total Entries</div>
+              </div>
+            </div>
+            <div class="col-md-3">
+              <div class="stat-card text-center" style="border-left: 4px solid #10b981;">
+                <div class="stat-number text-success">${result.completedSessions || 0}</div>
+                <div class="stat-label">Completed Sessions</div>
+              </div>
+            </div>
+            <div class="col-md-3">
+              <div class="stat-card text-center" style="border-left: 4px solid #f59e0b;">
+                <div class="stat-number text-warning">${result.totalHours || '0.00'}</div>
+                <div class="stat-label">Total Hours</div>
+              </div>
+            </div>
+            <div class="col-md-3">
+              <div class="stat-card text-center" style="border-left: 4px solid #8b5cf6;">
+                <div class="stat-number" style="color: #8b5cf6;">${result.averageHours || '0.00'}</div>
+                <div class="stat-label">Avg Hours/Session</div>
+              </div>
             </div>
           </div>
-          <div class="col-md-3">
-            <div class="stat-card text-center" style="border-left: 4px solid #f59e0b;">
-              <div class="stat-number text-warning">${result.totalHours || '0.00'}</div>
-              <div class="stat-label">Total Hours</div>
-            </div>
-          </div>
-          <div class="col-md-3">
-            <div class="stat-card text-center" style="border-left: 4px solid #8b5cf6;">
-              <div class="stat-number" style="color: #8b5cf6;">${result.averageHours || '0.00'}</div>
-              <div class="stat-label">Avg Hours/Session</div>
-            </div>
-          </div>
-        </div>
-      `;
+        `;
+      }
       
       // Staff Statistics (for range reports)
       if (result.staffStats && result.staffStats.length > 0) {
@@ -1368,6 +1451,54 @@ function updateReportForm() {
       
       // Detailed Logs Table
       if (result.logs && result.logs.length > 0) {
+        if (isResearchReport) {
+          html += `
+            <div class="card">
+              <div class="card-header d-flex justify-content-between align-items-center">
+                <span><i class="bi bi-table"></i> Research Sign-In Logs</span>
+                <button class="btn btn-sm btn-success" onclick="exportReportToCSV()">
+                  <i class="bi bi-download"></i> Export CSV
+                </button>
+              </div>
+              <div class="card-body">
+                <div class="table-responsive">
+                  <table class="table table-hover table-sm" id="reportTable">
+                    <thead>
+                      <tr>
+                        <th>Date</th>
+                        <th>Time</th>
+                        <th>Primary Investigator</th>
+                        <th>Research Assistants</th>
+                        <th>Participants</th>
+                        <th>Equipment Used</th>
+                        <th>Entry ID</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+          `;
+
+          result.logs.forEach(log => {
+            html += `
+              <tr>
+                <td>${log.submittedDate || '-'}</td>
+                <td>${log.submittedTime || '-'}</td>
+                <td><strong>${log.primaryInvestigator || '-'}</strong></td>
+                <td>${log.researchAssistants || 'N/A'}</td>
+                <td>${log.numberOfParticipants ?? 0}</td>
+                <td>${log.equipmentUsed || '-'}</td>
+                <td><small>${log.entryId || '-'}</small></td>
+              </tr>
+            `;
+          });
+
+          html += `
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          `;
+        } else {
         html += `
           <div class="card">
             <div class="card-header d-flex justify-content-between align-items-center">
@@ -1418,6 +1549,7 @@ function updateReportForm() {
             </div>
           </div>
         `;
+        }
       } else {
         html += `
           <div class="alert alert-warning">
@@ -1439,7 +1571,10 @@ function updateReportForm() {
         'weekly': 'Weekly Report',
         'monthly': 'Monthly Report',
         'custom': 'Custom Date Range Report',
-        'staff': 'Individual Staff Report'
+        'staff': 'Individual Staff Report',
+        'research_daily': 'Research Daily Report',
+        'research_monthly': 'Research Monthly Report',
+        'research_custom': 'Research Date Range Report'
       };
       return titles[reportType] || 'Report';
     }
@@ -1462,11 +1597,20 @@ function updateReportForm() {
       }
       
       const data = window.currentReportData;
-      let csv = 'Date,Staff Name,Staff ID,Check-In Time,Check-Out Time,Duration (Hours),Status\n';
-      
-      data.logs.forEach(log => {
-        csv += `"${log.date}","${log.staffName}","${log.staffId}","${log.checkInTime || '-'}","${log.checkOutTime || '-'}","${log.duration || '-'}","${log.status}"\n`;
-      });
+      const isResearchReport = data.reportCategory === 'research' || String(data.reportType || '').startsWith('research_');
+      let csv = '';
+
+      if (isResearchReport) {
+        csv = 'Date,Time,Primary Investigator,Research Assistants,Participants,Equipment Used,Entry ID,Submitted At\n';
+        data.logs.forEach(log => {
+          csv += `"${log.submittedDate || '-'}","${log.submittedTime || '-'}","${log.primaryInvestigator || '-'}","${log.researchAssistants || 'N/A'}","${log.numberOfParticipants ?? 0}","${log.equipmentUsed || '-'}","${log.entryId || '-'}","${log.submittedAt || '-'}"\n`;
+        });
+      } else {
+        csv = 'Date,Staff Name,Staff ID,Check-In Time,Check-Out Time,Duration (Hours),Status\n';
+        data.logs.forEach(log => {
+          csv += `"${log.date}","${log.staffName}","${log.staffId}","${log.checkInTime || '-'}","${log.checkOutTime || '-'}","${log.duration || '-'}","${log.status}"\n`;
+        });
+      }
       
       // Create download link
       const blob = new Blob([csv], { type: 'text/csv' });
