@@ -1882,6 +1882,22 @@ function getGuestPortalQRCode() {
   }
 }
 
+function getResearchFormQRCode() {
+  try {
+    const webAppUrl = ScriptApp.getService().getUrl();
+    const researchFormUrl = webAppUrl + '?page=research';
+    const researchQrImageUrl = 'https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=' + encodeURIComponent(researchFormUrl);
+
+    return {
+      success: true,
+      researchFormUrl: researchFormUrl,
+      researchQrImageUrl: researchQrImageUrl
+    };
+  } catch (error) {
+    return { success: false, message: 'Error: ' + error.message };
+  }
+}
+
 // ============================================
 // GUEST CHECK-IN/CHECK-OUT FUNCTIONS
 // ============================================

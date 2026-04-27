@@ -368,6 +368,9 @@
                         <button class="btn btn-dark btn-custom" onclick="downloadGuestQR()">
                           <i class="bi bi-download"></i> Download Guest QR Code (Permanent)
                         </button>
+                        <button class="btn btn-primary btn-custom" onclick="downloadResearchQR()">
+                          <i class="bi bi-download"></i> Download Research Form QR Code
+                        </button>
                         <button class="btn btn-warning btn-custom" onclick="printQR()">
                           <i class="bi bi-printer"></i> Print QR Code
                         </button>
@@ -1008,6 +1011,37 @@ function downloadGuestQR() {
       showAlert('danger', 'Error: ' + error.message);
     })
     .getGuestPortalQRCode();
+}
+
+function downloadResearchQR() {
+  const btn = event.target.closest('button');
+  const originalHTML = btn.innerHTML;
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Preparing Research QR...';
+
+  google.script.run
+    .withSuccessHandler(function(result) {
+      btn.disabled = false;
+      btn.innerHTML = originalHTML;
+
+      if (!result.success) {
+        showAlert('danger', result.message || 'Unable to generate research QR');
+        return;
+      }
+
+      const link = document.createElement('a');
+      link.href = result.researchQrImageUrl;
+      link.download = 'lab-research-signin-qr-code.png';
+      link.click();
+
+      showAlert('success', 'Research form QR code downloaded.');
+    })
+    .withFailureHandler(function(error) {
+      btn.disabled = false;
+      btn.innerHTML = originalHTML;
+      showAlert('danger', 'Error: ' + error.message);
+    })
+    .getResearchFormQRCode();
 }
 
 // Print QR code
