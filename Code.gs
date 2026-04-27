@@ -1588,6 +1588,177 @@ function getLogsByStaff(staffId, startDate, endDate) {
   }
 }
 
+function getResearchSignInLogsByDate(date) {
+  try {
+    const ss = SpreadsheetApp.getActive();
+    const sheet = ss.getSheetByName(RESEARCH_SIGNIN_SHEET);
+
+    if (!sheet) {
+      return {
+        success: true,
+        logs: [],
+        date: date,
+        totalLogs: 0,
+        totalParticipants: 0,
+        uniqueInvestigators: 0
+      };
+    }
+
+    const data = sheet.getDataRange().getValues();
+    const targetDate = Utilities.formatDate(new Date(date + 'T00:00:00'), Session.getScriptTimeZone(), DATE_FORMAT);
+    const logs = [];
+    let totalParticipants = 0;
+    const investigatorSet = {};
+
+    for (let i = 1; i < data.length; i++) {
+      let submittedDate = data[i][6];
+
+      if (submittedDate instanceof Date) {
+        submittedDate = Utilities.formatDate(submittedDate, Session.getScriptTimeZone(), DATE_FORMAT);
+      } else {
+        submittedDate = String(submittedDate || '').replace(/^'/, '').trim();
+      }
+
+      if (submittedDate === targetDate) {
+        let submittedAt = data[i][5];
+        let submittedTime = data[i][7];
+
+        if (submittedAt instanceof Date) {
+          submittedAt = Utilities.formatDate(submittedAt, Session.getScriptTimeZone(), DATE_TIME_FORMAT);
+        } else {
+          submittedAt = String(submittedAt || '').replace(/^'/, '').trim();
+        }
+
+        if (submittedTime instanceof Date) {
+          submittedTime = Utilities.formatDate(submittedTime, Session.getScriptTimeZone(), 'HH:mm:ss');
+        } else {
+          submittedTime = String(submittedTime || '').replace(/^'/, '').trim();
+        }
+
+        const participants = Number(data[i][3]) || 0;
+        const primaryInvestigator = String(data[i][1] || '').trim();
+
+        logs.push({
+          entryId: data[i][0],
+          primaryInvestigator: primaryInvestigator,
+          researchAssistants: data[i][2] || 'N/A',
+          numberOfParticipants: participants,
+          equipmentUsed: data[i][4] || '',
+          submittedAt: submittedAt,
+          submittedDate: submittedDate,
+          submittedTime: submittedTime
+        });
+
+        totalParticipants += participants;
+        if (primaryInvestigator) {
+          investigatorSet[primaryInvestigator] = true;
+        }
+      }
+    }
+
+    return {
+      success: true,
+      logs: logs,
+      date: targetDate,
+      totalLogs: logs.length,
+      totalParticipants: totalParticipants,
+      uniqueInvestigators: Object.keys(investigatorSet).length,
+      reportCategory: 'research'
+    };
+  } catch (error) {
+    return { success: false, message: "Error: " + error.message, logs: [] };
+  }
+}
+
+function getResearchSignInLogsByDateRange(startDate, endDate) {
+  try {
+    const ss = SpreadsheetApp.getActive();
+    const sheet = ss.getSheetByName(RESEARCH_SIGNIN_SHEET);
+
+    if (!sheet) {
+      return {
+        success: true,
+        logs: [],
+        startDate: startDate,
+        endDate: endDate,
+        totalLogs: 0,
+        totalParticipants: 0,
+        uniqueInvestigators: 0
+      };
+    }
+
+    const start = new Date(startDate + 'T00:00:00');
+    const end = new Date(endDate + 'T23:59:59');
+    const data = sheet.getDataRange().getValues();
+    const logs = [];
+    let totalParticipants = 0;
+    const investigatorSet = {};
+
+    for (let i = 1; i < data.length; i++) {
+      let submittedDateValue = data[i][6];
+      if (!(submittedDateValue instanceof Date)) {
+        submittedDateValue = new Date(String(submittedDateValue || '').replace(/^'/, '').trim() + 'T00:00:00');
+      }
+
+      if (submittedDateValue >= start && submittedDateValue <= end) {
+        let submittedAt = data[i][5];
+        let submittedDate = data[i][6];
+        let submittedTime = data[i][7];
+
+        if (submittedAt instanceof Date) {
+          submittedAt = Utilities.formatDate(submittedAt, Session.getScriptTimeZone(), DATE_TIME_FORMAT);
+        } else {
+          submittedAt = String(submittedAt || '').replace(/^'/, '').trim();
+        }
+
+        if (submittedDate instanceof Date) {
+          submittedDate = Utilities.formatDate(submittedDate, Session.getScriptTimeZone(), DATE_FORMAT);
+        } else {
+          submittedDate = String(submittedDate || '').replace(/^'/, '').trim();
+        }
+
+        if (submittedTime instanceof Date) {
+          submittedTime = Utilities.formatDate(submittedTime, Session.getScriptTimeZone(), 'HH:mm:ss');
+        } else {
+          submittedTime = String(submittedTime || '').replace(/^'/, '').trim();
+        }
+
+        const participants = Number(data[i][3]) || 0;
+        const primaryInvestigator = String(data[i][1] || '').trim();
+
+        logs.push({
+          entryId: data[i][0],
+          primaryInvestigator: primaryInvestigator,
+          researchAssistants: data[i][2] || 'N/A',
+          numberOfParticipants: participants,
+          equipmentUsed: data[i][4] || '',
+          submittedAt: submittedAt,
+          submittedDate: submittedDate,
+          submittedTime: submittedTime
+        });
+
+        totalParticipants += participants;
+        if (primaryInvestigator) {
+          investigatorSet[primaryInvestigator] = true;
+        }
+      }
+    }
+
+    return {
+      success: true,
+      logs: logs,
+      startDate: Utilities.formatDate(start, Session.getScriptTimeZone(), DATE_FORMAT),
+      endDate: Utilities.formatDate(end, Session.getScriptTimeZone(), DATE_FORMAT),
+      totalLogs: logs.length,
+      totalParticipants: totalParticipants,
+      uniqueInvestigators: Object.keys(investigatorSet).length,
+      reportCategory: 'research'
+    };
+  } catch (error) {
+    return { success: false, message: "Error: " + error.message, logs: [] };
+  }
+}
+
 
 /**
  * Auto check-out all staff at 7 PM daily
@@ -1779,6 +1950,41 @@ function generateComprehensiveReport(reportType, staffId, startDate, endDate, si
 
         result = getLogsByStaff(staffId, staffStart, staffEnd);
         result.periodDescription = staffStart + ' to ' + staffEnd;
+        break;
+
+      case 'research_daily':
+        if (!singleDate) {
+          return { success: false, message: "Date is required for research daily report" };
+        }
+        result = getResearchSignInLogsByDate(singleDate);
+        result.periodDescription = 'Research Sign-Ins for ' + singleDate;
+        break;
+
+      case 'research_custom':
+        if (!startDate || !endDate) {
+          return { success: false, message: "Start date and end date are required for research date range report" };
+        }
+        result = getResearchSignInLogsByDateRange(startDate, endDate);
+        result.periodDescription = 'Research Sign-Ins (' + startDate + ' to ' + endDate + ')';
+        break;
+
+      case 'research_monthly':
+        if (!singleDate) {
+          return { success: false, message: "Month is required for research monthly report" };
+        }
+
+        const researchMonthStart = singleDate + '-01';
+        const researchStartDate = new Date(researchMonthStart + 'T00:00:00');
+        if (isNaN(researchStartDate.getTime())) {
+          return { success: false, message: "Invalid month selected for research report" };
+        }
+
+        const researchEndDate = new Date(researchStartDate.getFullYear(), researchStartDate.getMonth() + 1, 0);
+        const researchStart = Utilities.formatDate(researchStartDate, timezone, DATE_FORMAT);
+        const researchEnd = Utilities.formatDate(researchEndDate, timezone, DATE_FORMAT);
+
+        result = getResearchSignInLogsByDateRange(researchStart, researchEnd);
+        result.periodDescription = Utilities.formatDate(researchStartDate, timezone, 'MMMM yyyy') + ' Research Sign-Ins';
         break;
         
       default:
