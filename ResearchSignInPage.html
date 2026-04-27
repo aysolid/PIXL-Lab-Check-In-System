@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <base target="_top">
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Research Sign-In Form</title>
+
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css" rel="stylesheet">
+
+  <style>
+    body {
+      background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 40%, #e0f2fe 100%);
+      min-height: 100vh;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      color: #0f172a;
+    }
+
+    .page-wrap {
+      max-width: 760px;
+      margin: 24px auto;
+      padding: 16px;
+    }
+
+    .form-card {
+      border: none;
+      border-radius: 22px;
+      box-shadow: 0 18px 50px rgba(30, 64, 175, 0.16);
+      overflow: hidden;
+      background: #fff;
+    }
+
+    .form-header {
+      background: linear-gradient(135deg, #0b3b92 0%, #1d4ed8 100%);
+      color: #fff;
+      padding: 30px 26px 24px;
+      text-align: center;
+      position: relative;
+    }
+
+    .form-header:before,
+    .form-header:after {
+      content: '';
+      position: absolute;
+      width: 90px;
+      height: 90px;
+      background: rgba(255, 255, 255, 0.12);
+      transform: rotate(45deg);
+      pointer-events: none;
+    }
+
+    .form-header:before {
+      left: -45px;
+      top: -45px;
+    }
+
+    .form-header:after {
+      right: -45px;
+      bottom: -45px;
+    }
+
+    .form-title {
+      margin: 0;
+      letter-spacing: 0.06em;
+      font-weight: 800;
+      font-size: 2.2rem;
+      line-height: 1;
+    }
+
+    .form-subtitle {
+      margin-top: 10px;
+      margin-bottom: 0;
+      font-weight: 600;
+      letter-spacing: 0.07em;
+      text-transform: uppercase;
+      font-size: 1rem;
+    }
+
+    .form-body {
+      padding: 28px;
+    }
+
+    .auto-time-banner {
+      border-radius: 12px;
+      background: #eff6ff;
+      border: 1px solid #bfdbfe;
+      color: #1e3a8a;
+      padding: 12px 14px;
+      margin-bottom: 18px;
+      font-size: 0.92rem;
+    }
+
+    .form-label {
+      font-weight: 600;
+      color: #334155;
+    }
+
+    .form-control,
+    .form-control:focus,
+    .form-select,
+    .form-select:focus {
+      border-radius: 12px;
+      border-width: 2px;
+      border-color: #dbe2ee;
+      box-shadow: none;
+    }
+
+    .form-control:focus,
+    .form-select:focus {
+      border-color: #1d4ed8;
+      box-shadow: 0 0 0 0.2rem rgba(29, 78, 216, 0.16);
+    }
+
+    .btn-submit {
+      background: linear-gradient(135deg, #0b3b92 0%, #1d4ed8 100%);
+      color: #fff;
+      border: none;
+      border-radius: 12px;
+      padding: 13px 18px;
+      font-weight: 700;
+      width: 100%;
+      transition: all 0.2s ease;
+    }
+
+    .btn-submit:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 8px 20px rgba(29, 78, 216, 0.26);
+    }
+
+    .footer-note {
+      margin-top: 16px;
+      font-size: 0.88rem;
+      color: #64748b;
+      text-align: center;
+    }
+  </style>
+</head>
+<body>
+  <div class="page-wrap">
+    <div class="card form-card">
+      <div class="form-header">
+        <h1 class="form-title">PIXL</h1>
+        <p class="form-subtitle">Research Sign-In Form</p>
+      </div>
+
+      <div class="form-body">
+        <div class="auto-time-banner">
+          <i class="bi bi-clock-history"></i>
+          Date and time are logged automatically when this form is submitted.
+        </div>
+
+        <form id="researchSignInForm" novalidate>
+          <div class="mb-3">
+            <label for="primaryInvestigator" class="form-label">Primary Investigator <span class="text-danger">*</span></label>
+            <input
+              type="text"
+              class="form-control"
+              id="primaryInvestigator"
+              placeholder="Enter primary investigator name"
+              required
+            >
+          </div>
+
+          <div class="mb-3">
+            <label for="researchAssistants" class="form-label">Research Assistants (if any)</label>
+            <input
+              type="text"
+              class="form-control"
+              id="researchAssistants"
+              placeholder="Enter assistant names (optional)"
+            >
+          </div>
+
+          <div class="mb-3">
+            <label for="numberOfParticipants" class="form-label">Number of Participants <span class="text-danger">*</span></label>
+            <input
+              type="number"
+              min="0"
+              step="1"
+              class="form-control"
+              id="numberOfParticipants"
+              placeholder="Enter participant count"
+              required
+            >
+          </div>
+
+          <div class="mb-3">
+            <label for="equipmentUsed" class="form-label">Equipment Used <span class="text-danger">*</span></label>
+            <textarea
+              class="form-control"
+              id="equipmentUsed"
+              rows="3"
+              placeholder="List equipment used"
+              required
+            ></textarea>
+          </div>
+
+          <div id="alertBox"></div>
+
+          <button type="submit" class="btn btn-submit" id="submitBtn">
+            <i class="bi bi-journal-check"></i> Submit Research Sign-In
+          </button>
+        </form>
+
+        <p class="footer-note">
+          <i class="bi bi-shield-check"></i> PIXL Lab Research Activity Tracking
+        </p>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    window.onload = function() {
+      document.getElementById('researchSignInForm').addEventListener('submit', handleSubmit);
+    };
+
+    function handleSubmit(event) {
+      event.preventDefault();
+
+      const submitBtn = document.getElementById('submitBtn');
+      const payload = {
+        primaryInvestigator: document.getElementById('primaryInvestigator').value.trim(),
+        researchAssistants: document.getElementById('researchAssistants').value.trim(),
+        numberOfParticipants: document.getElementById('numberOfParticipants').value.trim(),
+        equipmentUsed: document.getElementById('equipmentUsed').value.trim()
+      };
+
+      if (!payload.primaryInvestigator || !payload.numberOfParticipants || !payload.equipmentUsed) {
+        showAlert('warning', 'Please complete all required fields.');
+        return;
+      }
+
+      submitBtn.disabled = true;
+      submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Submitting...';
+
+      google.script.run
+        .withSuccessHandler(function(result) {
+          submitBtn.disabled = false;
+          submitBtn.innerHTML = '<i class="bi bi-journal-check"></i> Submit Research Sign-In';
+
+          if (result.success) {
+            showAlert('success', result.message + '<br><small>Entry ID: ' + result.entryId + '</small>');
+            document.getElementById('researchSignInForm').reset();
+          } else {
+            showAlert('danger', result.message);
+          }
+        })
+        .withFailureHandler(function(error) {
+          submitBtn.disabled = false;
+          submitBtn.innerHTML = '<i class="bi bi-journal-check"></i> Submit Research Sign-In';
+          showAlert('danger', 'Error: ' + error.message);
+        })
+        .submitResearchSignIn(payload);
+    }
+
+    function showAlert(type, message) {
+      const iconMap = {
+        success: 'check-circle-fill',
+        danger: 'x-circle-fill',
+        warning: 'exclamation-triangle-fill',
+        info: 'info-circle-fill'
+      };
+
+      document.getElementById('alertBox').innerHTML = `
+        <div class="alert alert-${type}" role="alert">
+          <i class="bi bi-${iconMap[type]}"></i> ${message}
+        </div>
+      `;
+    }
+  </script>
+</body>
+</html>
