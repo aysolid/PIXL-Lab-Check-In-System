@@ -12,6 +12,7 @@ const STAFF_SHEET = "Staff";
 const CHECKIN_LOG_SHEET = "Check-In Logs";
 const ADMIN_SHEET = "Admin";
 const QR_CODE_SHEET = "QR Codes";
+const RESEARCH_SIGNIN_SHEET = "Research Sign-Ins";
 const DATE_TIME_FORMAT = "yyyy-MM-dd HH:mm:ss";
 const DATE_FORMAT = "yyyy-MM-dd";
 
@@ -51,6 +52,14 @@ function doGet(e) {
       return HtmlService.createTemplateFromFile('GuestCheckInPage')
         .evaluate()
         .setTitle('Guest Check-In')
+        .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL)
+        .addMetaTag('viewport', 'width=device-width, initial-scale=1');
+    }
+
+    if (page === 'research') {
+      return HtmlService.createTemplateFromFile('ResearchSignInPage')
+        .evaluate()
+        .setTitle('Research Sign-In Form')
         .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL)
         .addMetaTag('viewport', 'width=device-width, initial-scale=1');
     }
@@ -1873,6 +1882,22 @@ function getGuestPortalQRCode() {
   }
 }
 
+function getResearchFormQRCode() {
+  try {
+    const webAppUrl = ScriptApp.getService().getUrl();
+    const researchFormUrl = webAppUrl + '?page=research';
+    const researchQrImageUrl = 'https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=' + encodeURIComponent(researchFormUrl);
+
+    return {
+      success: true,
+      researchFormUrl: researchFormUrl,
+      researchQrImageUrl: researchQrImageUrl
+    };
+  } catch (error) {
+    return { success: false, message: 'Error: ' + error.message };
+  }
+}
+
 // ============================================
 // GUEST CHECK-IN/CHECK-OUT FUNCTIONS
 // ============================================
@@ -2369,6 +2394,90 @@ function setupAutoGuestCheckOut() {
   } catch (error) {
     Logger.log("Error setting up auto guest check-out trigger: " + error.message);
     return { success: false, message: "Error: " + error.message };
+  }
+}
+
+// ============================================
+// RESEARCH SIGN-IN FORM
+// ============================================
+
+function ensureResearchSignInSheet() {
+  const ss = SpreadsheetApp.getActive();
+  let sheet = ss.getSheetByName(RESEARCH_SIGNIN_SHEET);
+
+  if (!sheet) {
+    sheet = ss.insertSheet(RESEARCH_SIGNIN_SHEET);
+    sheet.appendRow([
+      'Entry ID',
+      'Primary Investigator',
+      'Research Assistants',
+      'Number of Participants',
+      'Equipment Used',
+      'Submitted At',
+      'Submitted Date',
+      'Submitted Time'
+    ]);
+    sheet
+      .getRange('A1:H1')
+      .setFontWeight('bold')
+      .setBackground('#1d4ed8')
+      .setFontColor('white');
+    sheet.setFrozenRows(1);
+  }
+
+  sheet.getRange('F:H').setNumberFormat('@STRING@');
+  return sheet;
+}
+
+function submitResearchSignIn(formData) {
+  try {
+    const primaryInvestigator = String(formData.primaryInvestigator || '').trim();
+    const researchAssistants = String(formData.researchAssistants || '').trim();
+    const participantsRaw = String(formData.numberOfParticipants || '').trim();
+    const equipmentUsed = String(formData.equipmentUsed || '').trim();
+
+    if (!primaryInvestigator) {
+      return { success: false, message: 'Primary investigator is required.' };
+    }
+
+    if (!participantsRaw) {
+      return { success: false, message: 'Number of participants is required.' };
+    }
+
+    const participantCount = Number(participantsRaw);
+    if (!Number.isInteger(participantCount) || participantCount < 0) {
+      return { success: false, message: 'Participants must be a whole number (0 or greater).' };
+    }
+
+    if (!equipmentUsed) {
+      return { success: false, message: 'Equipment used is required.' };
+    }
+
+    const sheet = ensureResearchSignInSheet();
+    const now = new Date();
+    const timestamp = Utilities.formatDate(now, Session.getScriptTimeZone(), DATE_TIME_FORMAT);
+    const dateOnly = Utilities.formatDate(now, Session.getScriptTimeZone(), DATE_FORMAT);
+    const timeOnly = Utilities.formatDate(now, Session.getScriptTimeZone(), 'HH:mm:ss');
+    const entryId = 'RS-' + Date.now();
+
+    const newRow = sheet.getLastRow() + 1;
+    sheet.getRange(newRow, 1).setValue(entryId);
+    sheet.getRange(newRow, 2).setValue(primaryInvestigator);
+    sheet.getRange(newRow, 3).setValue(researchAssistants || 'N/A');
+    sheet.getRange(newRow, 4).setValue(participantCount);
+    sheet.getRange(newRow, 5).setValue(equipmentUsed);
+    sheet.getRange(newRow, 6).setValue("'" + timestamp);
+    sheet.getRange(newRow, 7).setValue("'" + dateOnly);
+    sheet.getRange(newRow, 8).setValue("'" + timeOnly);
+
+    return {
+      success: true,
+      message: 'Research activity recorded successfully.',
+      entryId: entryId,
+      submittedAt: timestamp
+    };
+  } catch (error) {
+    return { success: false, message: 'Error: ' + error.message };
   }
 }
 // ============================================
