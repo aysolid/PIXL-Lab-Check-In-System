@@ -157,6 +157,74 @@
       font-size: 1.1rem;
     }
 
+    .auth-container {
+      background: white;
+      border-radius: 25px;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+      padding: 45px;
+      text-align: center;
+      max-width: 480px;
+      width: 100%;
+    }
+
+    .auth-container h1 {
+      color: #667eea;
+      margin-bottom: 10px;
+      font-size: 2rem;
+    }
+
+    .auth-container p {
+      color: #6b7280;
+      margin-bottom: 25px;
+      line-height: 1.5;
+    }
+
+    .pin-input {
+      width: 100%;
+      padding: 16px;
+      border: 2px solid #e5e7eb;
+      border-radius: 12px;
+      font-size: 1.3rem;
+      text-align: center;
+      letter-spacing: 0.25rem;
+      margin-bottom: 16px;
+    }
+
+    .pin-input:focus {
+      outline: none;
+      border-color: #667eea;
+      box-shadow: 0 0 0 0.2rem rgba(102, 126, 234, 0.25);
+    }
+
+    .unlock-btn {
+      width: 100%;
+      padding: 15px;
+      border: none;
+      border-radius: 12px;
+      color: white;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      font-size: 1.1rem;
+      font-weight: 700;
+      cursor: pointer;
+    }
+
+    .auth-alert {
+      margin-top: 16px;
+      padding: 12px;
+      border-radius: 10px;
+      display: none;
+    }
+
+    .auth-alert.error {
+      background: #fee2e2;
+      color: #991b1b;
+    }
+
+    .auth-alert.info {
+      background: #dbeafe;
+      color: #1e40af;
+    }
+
     .qr-info {
       margin-top: 20px;
       padding: 15px;
@@ -202,7 +270,25 @@
   </style>
 </head>
 <body>
-  <div class="display-container">
+  <div class="auth-container" id="authContainer" style="display: none;">
+    <h1>🔒 QR Display Locked</h1>
+    <p>Enter the QR display PIN to authorize this browser for the multimedia board.</p>
+    <input
+      type="password"
+      inputmode="numeric"
+      pattern="[0-9]*"
+      class="pin-input"
+      id="displayPin"
+      placeholder="PIN"
+      autocomplete="current-password"
+    >
+    <button type="button" class="unlock-btn" id="unlockBtn" onclick="unlockQRDisplayWithPin()">
+      Unlock QR Display
+    </button>
+    <div class="auth-alert" id="authAlert"></div>
+  </div>
+
+  <div class="display-container" id="displayContainer" style="display: none;">
       <div class="header">
       <h1>🔬 PIXL Lab Check-In</h1>
       <p>Scan QR Code to Check In/Out</p>
@@ -239,7 +325,7 @@
     </div>
     
     <div class="auto-refresh-notice">
-      🔄 This page auto-refreshes at midnight to show the new daily QR code
+      🔄 This page updates automatically when a new staff QR code is active
     </div>
   </div>
 
@@ -247,6 +333,11 @@
     let currentDate = '';
     let retryCount = 0;
     const MAX_RETRIES = 5;
+    const AUTH_STORAGE_KEY = 'pixlQrDisplayAuthorizedPinVersion';
+    let isDisplayAuthorized = false;
+    let securityCheckInterval = null;
+    let qrRefreshInterval = null;
+    let midnightRefreshTimeout = null;
     
     // Update time display every second
     function updateTime() {
@@ -283,6 +374,10 @@
     
     // Load today's QR code
     function loadQRCode() {
+      if (!isDisplayAuthorized) {
+        return;
+      }
+
       console.log('Loading QR code... (Attempt ' + (retryCount + 1) + ')');
       
       google.script.run
@@ -397,17 +492,139 @@
     // Initialize on page load
     window.onload = function() {
       console.log('QR Display page loaded');
-      
-      // Start time updates
+
       updateTime();
       setInterval(updateTime, 1000);
-      
-      // Load QR code
-      loadQRCode();
-      
-      // Schedule midnight refresh
-      scheduleMidnightRefresh();
+
+      initializeQRDisplaySecurity();
     };
+
+    function initializeQRDisplaySecurity() {
+      document.getElementById('authContainer').style.display = 'block';
+      document.getElementById('displayContainer').style.display = 'none';
+      showAuthMessage('Checking display authorization...', 'info');
+
+      google.script.run
+        .withSuccessHandler(function(result) {
+          if (!result.success) {
+            showPinScreen(result.message || 'Unable to verify display security.');
+            return;
+          }
+
+          const savedVersion = localStorage.getItem(AUTH_STORAGE_KEY);
+          if (savedVersion && savedVersion === result.pinVersion) {
+            authorizeDisplay(result.pinVersion);
+          } else {
+            localStorage.removeItem(AUTH_STORAGE_KEY);
+            showPinScreen();
+          }
+        })
+        .withFailureHandler(function(error) {
+          showPinScreen('Error checking display authorization: ' + error.message);
+        })
+        .getQRDisplaySecurityStatus();
+    }
+
+    function showPinScreen(message) {
+      isDisplayAuthorized = false;
+      document.getElementById('displayContainer').style.display = 'none';
+      document.getElementById('authContainer').style.display = 'block';
+      document.getElementById('displayPin').focus();
+
+      if (message) {
+        showAuthMessage(message, 'error');
+      } else {
+        hideAuthMessage();
+      }
+    }
+
+    function authorizeDisplay(pinVersion) {
+      isDisplayAuthorized = true;
+      localStorage.setItem(AUTH_STORAGE_KEY, pinVersion);
+      document.getElementById('authContainer').style.display = 'none';
+      document.getElementById('displayContainer').style.display = 'block';
+
+      retryCount = 0;
+      loadQRCode();
+      scheduleMidnightRefresh();
+      startAuthorizedRefreshLoops();
+    }
+
+    function unlockQRDisplayWithPin() {
+      const pinInput = document.getElementById('displayPin');
+      const unlockBtn = document.getElementById('unlockBtn');
+      const pin = pinInput.value.trim();
+
+      if (!pin) {
+        showAuthMessage('Please enter the QR display PIN.', 'error');
+        return;
+      }
+
+      unlockBtn.disabled = true;
+      unlockBtn.textContent = 'Verifying...';
+
+      google.script.run
+        .withSuccessHandler(function(result) {
+          unlockBtn.disabled = false;
+          unlockBtn.textContent = 'Unlock QR Display';
+
+          if (result.success) {
+            pinInput.value = '';
+            authorizeDisplay(result.pinVersion);
+          } else {
+            localStorage.removeItem(AUTH_STORAGE_KEY);
+            showAuthMessage(result.message || 'Invalid PIN.', 'error');
+          }
+        })
+        .withFailureHandler(function(error) {
+          unlockBtn.disabled = false;
+          unlockBtn.textContent = 'Unlock QR Display';
+          showAuthMessage('Error: ' + error.message, 'error');
+        })
+        .validateQRDisplayPin(pin);
+    }
+
+    function showAuthMessage(message, type) {
+      const alert = document.getElementById('authAlert');
+      alert.textContent = message;
+      alert.className = 'auth-alert ' + (type || 'info');
+      alert.style.display = 'block';
+    }
+
+    function hideAuthMessage() {
+      const alert = document.getElementById('authAlert');
+      alert.style.display = 'none';
+      alert.textContent = '';
+    }
+
+    function startAuthorizedRefreshLoops() {
+      if (!securityCheckInterval) {
+        securityCheckInterval = setInterval(checkQRDisplayAuthorization, 60 * 1000);
+      }
+
+      if (!qrRefreshInterval) {
+        qrRefreshInterval = setInterval(function() {
+          console.log('Periodic 1-minute refresh check');
+          loadQRCode();
+        }, 60 * 1000);
+      }
+    }
+
+    function checkQRDisplayAuthorization() {
+      google.script.run
+        .withSuccessHandler(function(result) {
+          if (!result.success) {
+            return;
+          }
+
+          const savedVersion = localStorage.getItem(AUTH_STORAGE_KEY);
+          if (!savedVersion || savedVersion !== result.pinVersion) {
+            localStorage.removeItem(AUTH_STORAGE_KEY);
+            showPinScreen('The QR display PIN has changed. Please enter the new PIN.');
+          }
+        })
+        .getQRDisplaySecurityStatus();
+    }
     
     // Schedule refresh at next midnight
     function scheduleMidnightRefresh() {
@@ -416,8 +633,12 @@
       const delay = tomorrow - now;
       
       console.log('Next midnight refresh in', Math.round(delay / 1000 / 60), 'minutes');
-      
-      setTimeout(function() {
+
+      if (midnightRefreshTimeout) {
+        clearTimeout(midnightRefreshTimeout);
+      }
+
+      midnightRefreshTimeout = setTimeout(function() {
         console.log('Midnight refresh triggered');
         retryCount = 0;
         loadQRCode();
@@ -434,11 +655,13 @@
       }
     });
     
-    // Periodic refresh every 5 minutes (backup)
-    setInterval(function() {
-      console.log('Periodic 5-minute refresh check');
-      loadQRCode();
-    }, 1 * 60 * 1000);
+    document.addEventListener('DOMContentLoaded', function() {
+      document.getElementById('displayPin').addEventListener('keypress', function(e) {
+        if (e.key === 'Enter') {
+          unlockQRDisplayWithPin();
+        }
+      });
+    });
   </script>
 </body>
 </html>

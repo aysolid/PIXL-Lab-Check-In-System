@@ -210,7 +210,7 @@
         <h5 style="color: #374151; margin-bottom: 15px;">How to Check In</h5>
         <div style="text-align: left; background: #f3f4f6; padding: 20px; border-radius: 10px; margin-bottom: 20px;">
           <p style="margin-bottom: 10px;"><strong>Step 1:</strong> Go to the lab entrance</p>
-          <p style="margin-bottom: 10px;"><strong>Step 2:</strong> Find the daily QR code posted on the wall</p>
+          <p style="margin-bottom: 10px;"><strong>Step 2:</strong> Find the current staff QR code posted on the wall</p>
           <p style="margin-bottom: 10px;"><strong>Step 3:</strong> Use your phone camera to scan the QR code</p>
           <p style="margin-bottom: 0;"><strong>Step 4:</strong> The check-in page will open automatically</p>
         </div>
@@ -572,7 +572,7 @@
           }
         })
         .withFailureHandler(handleStaffLoginError)
-        .checkOut(currentStaffId);
+        .checkOut(currentStaffId, qrToken);
     }
     
     function showStaffAlert(type, message) {

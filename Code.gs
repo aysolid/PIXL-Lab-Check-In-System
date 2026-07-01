@@ -1,9 +1,9 @@
 /**
  * Lab Staff Check-In/Check-Out System
- * SIMPLIFIED DAILY QR CODE VERSION
- * - Auto-generates at 7 AM daily
+ * SCHEDULED QR CODE VERSION
+ * - Auto-generates at 7 AM, 12 PM, and 3 PM daily
  * - Manual generation option
- * - Simple QR Display (no security)
+ * - PIN-protected QR Display
  * - All dates FORCED to plain text
  */
 
@@ -13,6 +13,10 @@ const CHECKIN_LOG_SHEET = "Check-In Logs";
 const ADMIN_SHEET = "Admin";
 const QR_CODE_SHEET = "QR Codes";
 const RESEARCH_SIGNIN_SHEET = "Research Sign-Ins";
+const QR_ROTATION_HOURS = [7, 12, 15];
+const QR_DISPLAY_DEFAULT_PIN = "8080";
+const QR_DISPLAY_PIN_HASH_PROPERTY = "QR_DISPLAY_PIN_HASH";
+const QR_DISPLAY_PIN_VERSION_PROPERTY = "QR_DISPLAY_PIN_VERSION";
 const DATE_TIME_FORMAT = "yyyy-MM-dd HH:mm:ss";
 const DATE_FORMAT = "yyyy-MM-dd";
 
@@ -158,12 +162,12 @@ function validateAdmin(username, password) {
 // ============================================
 
 /**
- * Auto-generate daily QR code at 7 AM
+ * Auto-generate staff QR code on the configured schedule
  */
 function automaticDailyQRGeneration() {
   try {
-    Logger.log("Starting automatic daily QR code generation...");
-    const result = generateDailyQRCode();
+    Logger.log("Starting automatic staff QR code generation...");
+    const result = generateDailyQRCode('System - Scheduled Trigger');
     
     if (result.success) {
       Logger.log("SUCCESS: " + result.message);
@@ -194,46 +198,52 @@ function testQRDisplay() {
 }
 
 /**
- * Setup daily trigger at 7 AM - RUN THIS ONCE
+ * Backward-compatible setup function for QR triggers - RUN THIS ONCE
  */
 function setupDailyQRTrigger() {
+  return setupScheduledQRRotations();
+}
+
+/**
+ * Setup staff QR rotation triggers at 7 AM, 12 PM, and 3 PM - RUN THIS ONCE
+ */
+function setupScheduledQRRotations() {
   try {
-    // Delete existing triggers
     const triggers = ScriptApp.getProjectTriggers();
     for (let i = 0; i < triggers.length; i++) {
       if (triggers[i].getHandlerFunction() === 'automaticDailyQRGeneration') {
         ScriptApp.deleteTrigger(triggers[i]);
       }
     }
-    
-    // Create 7 AM daily trigger
-    ScriptApp.newTrigger('automaticDailyQRGeneration')
-      .timeBased()
-      .atHour(7)
-      .everyDays(1)
-      .create();
-    
-    Logger.log("Daily QR trigger created! Runs at 7:00 AM daily.");
-    
-    // Generate first QR immediately
-    const firstQR = generateDailyQRCode();
-    
+
+    for (let i = 0; i < QR_ROTATION_HOURS.length; i++) {
+      ScriptApp.newTrigger('automaticDailyQRGeneration')
+        .timeBased()
+        .atHour(QR_ROTATION_HOURS[i])
+        .everyDays(1)
+        .create();
+    }
+
+    Logger.log('Staff QR rotation triggers created for: ' + QR_ROTATION_HOURS.join(', '));
+
+    const firstQR = generateDailyQRCode('System - Trigger Setup');
+
     return {
       success: true,
-      message: "Daily trigger set up at 7:00 AM. First QR code generated.",
+      message: 'Staff QR rotation triggers set for 7:00 AM, 12:00 PM, and 3:00 PM. Current QR refreshed.',
       firstQR: firstQR
     };
-    
+
   } catch (error) {
-    Logger.log("Error setting up trigger: " + error.message);
-    return { success: false, message: "Error: " + error.message };
+    Logger.log('Error setting up QR rotation triggers: ' + error.message);
+    return { success: false, message: 'Error: ' + error.message };
   }
 }
 
 /**
- * Generate daily QR code with BULLETPROOF plain text enforcement
+ * Generate staff QR code with BULLETPROOF plain text enforcement
  */
-function generateDailyQRCode() {
+function generateDailyQRCode(generatedBy) {
   try {
     const ss = SpreadsheetApp.getActive();
     let qrSheet = ss.getSheetByName(QR_CODE_SHEET);
@@ -276,7 +286,7 @@ function generateDailyQRCode() {
         // Update existing
         qrSheet.getRange(i + 1, 2).setValue(token);
         qrSheet.getRange(i + 1, 3).setValue(qrCodeUrl);
-        qrSheet.getRange(i + 1, 4).setValue('System');
+        qrSheet.getRange(i + 1, 4).setValue(generatedBy || 'System');
         qrSheet.getRange(i + 1, 5).setValue(timestampText);
         
         return {
@@ -296,7 +306,7 @@ function generateDailyQRCode() {
     qrSheet.getRange(newRow, 1).setValue(dateText);
     qrSheet.getRange(newRow, 2).setValue(token);
     qrSheet.getRange(newRow, 3).setValue(qrCodeUrl);
-    qrSheet.getRange(newRow, 4).setValue('System');
+    qrSheet.getRange(newRow, 4).setValue(generatedBy || 'System');
     qrSheet.getRange(newRow, 5).setValue(timestampText);
     
     return {
@@ -306,7 +316,7 @@ function generateDailyQRCode() {
       qrImageUrl: qrImageUrl,
       date: today,
       timestamp: timestamp,
-      message: "New daily QR code generated"
+      message: "New staff QR code generated"
     };
     
   } catch (error) {
@@ -327,42 +337,55 @@ function generateToken() {
   return token;
 }
 
+function getCurrentQRRotationStart(now) {
+  const current = now || new Date();
+  const rotationStart = new Date(current);
+  rotationStart.setMinutes(0, 0, 0);
+
+  let activeHour = 0;
+  for (let i = 0; i < QR_ROTATION_HOURS.length; i++) {
+    if (current.getHours() >= QR_ROTATION_HOURS[i]) {
+      activeHour = QR_ROTATION_HOURS[i];
+    }
+  }
+
+  rotationStart.setHours(activeHour);
+  return rotationStart;
+}
+
+function parseStoredDateTime(value) {
+  if (value instanceof Date) {
+    return value;
+  }
+
+  const normalized = String(value || '').replace(/^'/, '').trim().replace(' ', 'T');
+  const parsed = new Date(normalized);
+
+  if (isNaN(parsed.getTime())) {
+    return null;
+  }
+
+  return parsed;
+}
+
 /**
- * Validate QR token (daily)
+ * Validate the currently active QR token
  */
 function validateQRToken(token) {
   try {
     if (!token) {
       return { valid: false, message: "No QR code scanned." };
     }
-    
-    const ss = SpreadsheetApp.getActive();
-    const qrSheet = ss.getSheetByName(QR_CODE_SHEET);
-    
-    if (!qrSheet) {
-      return { valid: false, message: "QR system not initialized." };
+
+    const currentQR = getCurrentQRCode();
+    if (!currentQR.success) {
+      return { valid: false, message: currentQR.message || "QR system not initialized." };
     }
-    
-    const today = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), DATE_FORMAT);
-    const data = qrSheet.getDataRange().getValues();
-    
-    for (let i = 1; i < data.length; i++) {
-      let sheetDate = data[i][0];
-      
-      if (sheetDate instanceof Date) {
-        sheetDate = Utilities.formatDate(sheetDate, Session.getScriptTimeZone(), DATE_FORMAT);
-      } else {
-        sheetDate = String(sheetDate).replace(/^'/, '').trim();
-      }
-      
-      const sheetToken = String(data[i][1]).trim();
-      const inputToken = String(token).trim();
-      
-      if (sheetDate === today && sheetToken === inputToken) {
-        return { valid: true, message: "QR code verified" };
-      }
+
+    if (String(currentQR.token).trim() === String(token).trim()) {
+      return { valid: true, message: "QR code verified" };
     }
-    
+
     return { valid: false, message: "Invalid or expired QR code." };
     
   } catch (error) {
@@ -396,6 +419,14 @@ function getCurrentQRCode() {
       }
       
       if (sheetDate === today) {
+        const generatedAt = parseStoredDateTime(data[i][4]);
+        const rotationStart = getCurrentQRRotationStart(new Date());
+
+        if (!generatedAt || generatedAt < rotationStart) {
+          Logger.log('Current QR is older than active rotation window. Generating a fresh QR code.');
+          return generateDailyQRCode('System - Scheduled Rotation');
+        }
+
         const qrCodeUrl = data[i][2];
         const qrImageUrl = `https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=${encodeURIComponent(qrCodeUrl)}`;
         
@@ -406,7 +437,9 @@ function getCurrentQRCode() {
           qrCodeUrl: qrCodeUrl,
           qrImageUrl: qrImageUrl,
           generatedBy: data[i][3],
-          timestamp: String(data[i][4]).replace(/^'/, '')
+          timestamp: String(data[i][4]).replace(/^'/, ''),
+          rotationStart: Utilities.formatDate(rotationStart, Session.getScriptTimeZone(), DATE_TIME_FORMAT),
+          rotationHours: QR_ROTATION_HOURS
         };
       }
     }
@@ -785,8 +818,13 @@ function checkIn(staffId, qrToken) {
   }
 }
 
-function checkOut(staffId) {
+function checkOut(staffId, qrToken) {
   try {
+    const qrValidation = validateQRToken(qrToken);
+    if (!qrValidation.valid) {
+      return { success: false, message: qrValidation.message };
+    }
+
     const staffResult = getStaffById(staffId);
     if (!staffResult.success) {
       return { success: false, message: "Invalid Staff ID" };
@@ -2104,6 +2142,98 @@ function getResearchFormQRCode() {
   }
 }
 
+function hashQRDisplayPin(pin) {
+  const digest = Utilities.computeDigest(
+    Utilities.DigestAlgorithm.SHA_256,
+    String(pin || ''),
+    Utilities.Charset.UTF_8
+  );
+
+  return digest.map(function(byte) {
+    const value = byte < 0 ? byte + 256 : byte;
+    return ('0' + value.toString(16)).slice(-2);
+  }).join('');
+}
+
+function ensureQRDisplayPinSettings() {
+  const properties = PropertiesService.getScriptProperties();
+  let pinHash = properties.getProperty(QR_DISPLAY_PIN_HASH_PROPERTY);
+  let pinVersion = properties.getProperty(QR_DISPLAY_PIN_VERSION_PROPERTY);
+
+  if (!pinHash) {
+    pinHash = hashQRDisplayPin(QR_DISPLAY_DEFAULT_PIN);
+    properties.setProperty(QR_DISPLAY_PIN_HASH_PROPERTY, pinHash);
+  }
+
+  if (!pinVersion) {
+    pinVersion = String(Date.now());
+    properties.setProperty(QR_DISPLAY_PIN_VERSION_PROPERTY, pinVersion);
+  }
+
+  return {
+    pinHash: pinHash,
+    pinVersion: pinVersion
+  };
+}
+
+function getQRDisplaySecurityStatus() {
+  try {
+    const settings = ensureQRDisplayPinSettings();
+    return {
+      success: true,
+      pinVersion: settings.pinVersion
+    };
+  } catch (error) {
+    return { success: false, message: 'Error: ' + error.message };
+  }
+}
+
+function validateQRDisplayPin(pin) {
+  try {
+    const safePin = String(pin || '').trim();
+    if (!safePin) {
+      return { success: false, message: 'PIN is required.' };
+    }
+
+    const settings = ensureQRDisplayPinSettings();
+    if (hashQRDisplayPin(safePin) !== settings.pinHash) {
+      return { success: false, message: 'Invalid QR display PIN.' };
+    }
+
+    return {
+      success: true,
+      message: 'QR display unlocked.',
+      pinVersion: settings.pinVersion
+    };
+  } catch (error) {
+    return { success: false, message: 'Error: ' + error.message };
+  }
+}
+
+function updateQRDisplayPin(newPin) {
+  try {
+    const safePin = String(newPin || '').trim();
+
+    if (!/^\d{4,12}$/.test(safePin)) {
+      return { success: false, message: 'PIN must be 4 to 12 digits.' };
+    }
+
+    const properties = PropertiesService.getScriptProperties();
+    const pinVersion = String(Date.now());
+
+    properties.setProperty(QR_DISPLAY_PIN_HASH_PROPERTY, hashQRDisplayPin(safePin));
+    properties.setProperty(QR_DISPLAY_PIN_VERSION_PROPERTY, pinVersion);
+
+    return {
+      success: true,
+      message: 'QR display PIN updated. All display browsers must enter the new PIN.',
+      pinVersion: pinVersion
+    };
+  } catch (error) {
+    return { success: false, message: 'Error: ' + error.message };
+  }
+}
+
 // ============================================
 // GUEST CHECK-IN/CHECK-OUT FUNCTIONS
 // ============================================
@@ -2295,7 +2425,7 @@ function guestCheckIn(firstName, lastName, qrToken) {
       return { success: false, message: qrValidation.message };
     }
 
-    return processGuestCheckIn(firstName, lastName, 'Guest check-in via staff daily QR');
+    return processGuestCheckIn(firstName, lastName, 'Guest check-in via current staff QR');
   } catch (error) {
     Logger.log('Error in guestCheckIn: ' + error.message);
     return { success: false, message: "Error: " + error.message };
