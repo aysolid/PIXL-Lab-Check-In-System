@@ -208,6 +208,11 @@
             </a>
           </li>
           <li class="nav-item">
+            <a class="nav-link" href="<?= ScriptApp.getService().getUrl() ?>?page=research">
+              <i class="bi bi-journal-richtext"></i> Research Form
+            </a>
+          </li>
+          <li class="nav-item">
             <a class="nav-link" href="<?= ScriptApp.getService().getUrl() ?>?page=backdoor">
               <i class="bi bi-shield-lock"></i> Backdoor
             </a>
@@ -327,7 +332,7 @@
             <div class="tab-pane fade show active" id="qr-panel">
               <div class="card">
                 <div class="card-header">
-                  <i class="bi bi-qr-code-scan"></i> Daily QR Code Management
+                  <i class="bi bi-qr-code-scan"></i> Staff QR Code Management
                 </div>
                 <div class="card-body">
                   <div class="row">
@@ -339,10 +344,10 @@
                       <div id="qrCodeInfo" class="mt-3"></div>
                     </div>
                     <div class="col-md-6">
-                      <h5><i class="bi bi-info-circle"></i> Daily QR Code System</h5>
+                      <h5><i class="bi bi-info-circle"></i> Scheduled QR Code System</h5>
                       <div class="alert alert-info">
-                        <p><strong>🔄 Auto-Generation:</strong> New QR code at 7:00 AM daily</p>
-                        <p><strong>📅 Validity:</strong> Each QR code valid for entire day</p>
+                        <p><strong>🔄 Auto-Generation:</strong> QR rotates at 7:00 AM, 12:00 PM, and 3:00 PM</p>
+                        <p><strong>📅 Validity:</strong> Each QR code is valid until the next scheduled rotation</p>
                         <p><strong>🔒 Security:</strong> Previous codes rejected automatically</p>
                         <p><strong>📱 Smart Boards:</strong> Use QR Display page below</p>
                       </div>
@@ -362,6 +367,9 @@
                         </button>
                         <button class="btn btn-dark btn-custom" onclick="downloadGuestQR()">
                           <i class="bi bi-download"></i> Download Guest QR Code (Permanent)
+                        </button>
+                        <button class="btn btn-primary btn-custom" onclick="downloadResearchQR()">
+                          <i class="bi bi-download"></i> Download Research Form QR Code
                         </button>
                         <button class="btn btn-warning btn-custom" onclick="printQR()">
                           <i class="bi bi-printer"></i> Print QR Code
@@ -425,6 +433,9 @@
                           <option value="monthly">Monthly Report</option>
                           <option value="custom">Custom Date Range</option>
                           <option value="staff">Individual Staff Report</option>
+                          <option value="research_daily">Research Daily Report</option>
+                          <option value="research_monthly">Research Monthly Report</option>
+                          <option value="research_custom">Research Date Range Report</option>
                         </select>
                       </div>
                       
@@ -529,6 +540,34 @@
                     </button>
                   </div>
                 </div>
+
+                <div class="card mt-3">
+                  <div class="card-header">
+                    <i class="bi bi-shield-lock"></i> QR Display Security
+                  </div>
+                  <div class="card-body">
+                    <p class="text-muted">
+                      Change the PIN required to unlock the multimedia-board QR display page.
+                      Changing this PIN forces previously trusted browsers to enter the new PIN.
+                    </p>
+                    <div class="mb-3">
+                      <label class="form-label">New QR Display PIN</label>
+                      <input
+                        type="password"
+                        inputmode="numeric"
+                        pattern="[0-9]*"
+                        class="form-control"
+                        id="qrDisplayPin"
+                        placeholder="Enter 4-12 digit PIN"
+                        autocomplete="new-password"
+                      >
+                    </div>
+                    <button type="button" class="btn btn-primary btn-custom w-100" onclick="updateQRDisplayPinFromDashboard()">
+                      <i class="bi bi-key"></i> Update QR Display PIN
+                    </button>
+                    <div id="qrDisplaySecurityStatus" class="mt-3"></div>
+                  </div>
+                </div>
                 
                 <div class="card mt-3">
                   <div class="card-header">
@@ -577,6 +616,9 @@
                       </a>
                       <button class="btn btn-info btn-custom" onclick="viewSheetInstructions()">
                         <i class="bi bi-question-circle"></i> Setup Instructions
+                      </button>
+                      <button class="btn btn-primary btn-custom" onclick="setupQRRotationTriggers()">
+                        <i class="bi bi-clock-history"></i> Setup QR Rotation Triggers
                       </button>
                     </div>
                   </div>
@@ -668,6 +710,7 @@
   loadRecentLogs();
   populateStaffSelects();
   updateReportForm();  // ← ADD THIS LINE
+  loadQRDisplaySecurityStatus();
   
   // Set default dates
   const today = new Date().toISOString().split('T')[0];
@@ -759,7 +802,7 @@
       
       if (result.success) {
         container.innerHTML = `
-          <img src="${result.qrImageUrl}" alt="Daily QR Code" id="qrImage">
+          <img src="${result.qrImageUrl}" alt="Staff QR Code" id="qrImage">
           <p class="mt-3"><strong>Today's QR Code</strong></p>
           <p class="text-muted">${new Date(result.timestamp).toLocaleString()}</p>
         `;
@@ -838,7 +881,7 @@
 // DAILY QR CODE FUNCTIONS
 // ============================================
 
-// Load current daily QR code
+// Load current staff QR code
 function loadCurrentQR() {
   const container = document.getElementById('qrCodeDisplay');
   const info = document.getElementById('qrCodeInfo');
@@ -1005,6 +1048,37 @@ function downloadGuestQR() {
     .getGuestPortalQRCode();
 }
 
+function downloadResearchQR() {
+  const btn = event.target.closest('button');
+  const originalHTML = btn.innerHTML;
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Preparing Research QR...';
+
+  google.script.run
+    .withSuccessHandler(function(result) {
+      btn.disabled = false;
+      btn.innerHTML = originalHTML;
+
+      if (!result.success) {
+        showAlert('danger', result.message || 'Unable to generate research QR');
+        return;
+      }
+
+      const link = document.createElement('a');
+      link.href = result.researchQrImageUrl;
+      link.download = 'lab-research-signin-qr-code.png';
+      link.click();
+
+      showAlert('success', 'Research form QR code downloaded.');
+    })
+    .withFailureHandler(function(error) {
+      btn.disabled = false;
+      btn.innerHTML = originalHTML;
+      showAlert('danger', 'Error: ' + error.message);
+    })
+    .getResearchFormQRCode();
+}
+
 // Print QR code
 function printQR() {
   const img = document.getElementById('qrImage');
@@ -1078,6 +1152,21 @@ function updateReportForm() {
       staffSelectDiv.style.display = 'block';
       dateRangeDiv.style.display = 'block';
       reportHelp.innerHTML = '<small><i class="bi bi-info-circle"></i> Select staff + start date + end date for individual report range</small>';
+      break;
+
+    case 'research_daily':
+      singleDateDiv.style.display = 'block';
+      reportHelp.innerHTML = '<small><i class="bi bi-info-circle"></i> View research sign-ins for a specific date</small>';
+      break;
+
+    case 'research_monthly':
+      monthSelectDiv.style.display = 'block';
+      reportHelp.innerHTML = '<small><i class="bi bi-info-circle"></i> Select month for research sign-in summary</small>';
+      break;
+
+    case 'research_custom':
+      dateRangeDiv.style.display = 'block';
+      reportHelp.innerHTML = '<small><i class="bi bi-info-circle"></i> Select custom date range for research sign-ins</small>';
       break;
   }
 }
@@ -1208,19 +1297,19 @@ function updateReportForm() {
           let startDate = null, endDate = null, singleDate = null;
           
           // Validate inputs based on report type
-          if (reportType === 'daily') {
+          if (reportType === 'daily' || reportType === 'research_daily') {
             singleDate = document.getElementById('reportDate').value;
             if (!singleDate) {
               showAlert('warning', 'Please select a date');
               return;
             }
-          } else if (reportType === 'monthly') {
+          } else if (reportType === 'monthly' || reportType === 'research_monthly') {
             singleDate = document.getElementById('reportMonth').value;
             if (!singleDate) {
               showAlert('warning', 'Please select a month');
               return;
             }
-          } else if (reportType === 'custom') {
+          } else if (reportType === 'custom' || reportType === 'research_custom') {
             startDate = document.getElementById('reportStartDate').value;
             endDate = document.getElementById('reportEndDate').value;
             if (!startDate || !endDate) {
@@ -1286,35 +1375,61 @@ function updateReportForm() {
         </div>
       `;
       
-      // Summary Statistics
-      html += `
-        <div class="row mb-3">
-          <div class="col-md-3">
-            <div class="stat-card text-center" style="border-left: 4px solid #3b82f6;">
-              <div class="stat-number text-primary">${result.totalLogs || 0}</div>
-              <div class="stat-label">Total Entries</div>
+      const isResearchReport = result.reportCategory === 'research' || String(result.reportType || '').startsWith('research_');
+
+      if (isResearchReport) {
+        html += `
+          <div class="row mb-3">
+            <div class="col-md-4">
+              <div class="stat-card text-center" style="border-left: 4px solid #3b82f6;">
+                <div class="stat-number text-primary">${result.totalLogs || 0}</div>
+                <div class="stat-label">Total Entries</div>
+              </div>
+            </div>
+            <div class="col-md-4">
+              <div class="stat-card text-center" style="border-left: 4px solid #10b981;">
+                <div class="stat-number text-success">${result.totalParticipants || 0}</div>
+                <div class="stat-label">Total Participants</div>
+              </div>
+            </div>
+            <div class="col-md-4">
+              <div class="stat-card text-center" style="border-left: 4px solid #8b5cf6;">
+                <div class="stat-number" style="color: #8b5cf6;">${result.uniqueInvestigators || 0}</div>
+                <div class="stat-label">Unique Investigators</div>
+              </div>
             </div>
           </div>
-          <div class="col-md-3">
-            <div class="stat-card text-center" style="border-left: 4px solid #10b981;">
-              <div class="stat-number text-success">${result.completedSessions || 0}</div>
-              <div class="stat-label">Completed Sessions</div>
+        `;
+      } else {
+        html += `
+          <div class="row mb-3">
+            <div class="col-md-3">
+              <div class="stat-card text-center" style="border-left: 4px solid #3b82f6;">
+                <div class="stat-number text-primary">${result.totalLogs || 0}</div>
+                <div class="stat-label">Total Entries</div>
+              </div>
+            </div>
+            <div class="col-md-3">
+              <div class="stat-card text-center" style="border-left: 4px solid #10b981;">
+                <div class="stat-number text-success">${result.completedSessions || 0}</div>
+                <div class="stat-label">Completed Sessions</div>
+              </div>
+            </div>
+            <div class="col-md-3">
+              <div class="stat-card text-center" style="border-left: 4px solid #f59e0b;">
+                <div class="stat-number text-warning">${result.totalHours || '0.00'}</div>
+                <div class="stat-label">Total Hours</div>
+              </div>
+            </div>
+            <div class="col-md-3">
+              <div class="stat-card text-center" style="border-left: 4px solid #8b5cf6;">
+                <div class="stat-number" style="color: #8b5cf6;">${result.averageHours || '0.00'}</div>
+                <div class="stat-label">Avg Hours/Session</div>
+              </div>
             </div>
           </div>
-          <div class="col-md-3">
-            <div class="stat-card text-center" style="border-left: 4px solid #f59e0b;">
-              <div class="stat-number text-warning">${result.totalHours || '0.00'}</div>
-              <div class="stat-label">Total Hours</div>
-            </div>
-          </div>
-          <div class="col-md-3">
-            <div class="stat-card text-center" style="border-left: 4px solid #8b5cf6;">
-              <div class="stat-number" style="color: #8b5cf6;">${result.averageHours || '0.00'}</div>
-              <div class="stat-label">Avg Hours/Session</div>
-            </div>
-          </div>
-        </div>
-      `;
+        `;
+      }
       
       // Staff Statistics (for range reports)
       if (result.staffStats && result.staffStats.length > 0) {
@@ -1368,6 +1483,54 @@ function updateReportForm() {
       
       // Detailed Logs Table
       if (result.logs && result.logs.length > 0) {
+        if (isResearchReport) {
+          html += `
+            <div class="card">
+              <div class="card-header d-flex justify-content-between align-items-center">
+                <span><i class="bi bi-table"></i> Research Sign-In Logs</span>
+                <button class="btn btn-sm btn-success" onclick="exportReportToCSV()">
+                  <i class="bi bi-download"></i> Export CSV
+                </button>
+              </div>
+              <div class="card-body">
+                <div class="table-responsive">
+                  <table class="table table-hover table-sm" id="reportTable">
+                    <thead>
+                      <tr>
+                        <th>Date</th>
+                        <th>Time</th>
+                        <th>Primary Investigator</th>
+                        <th>Research Assistants</th>
+                        <th>Participants</th>
+                        <th>Equipment Used</th>
+                        <th>Entry ID</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+          `;
+
+          result.logs.forEach(log => {
+            html += `
+              <tr>
+                <td>${log.submittedDate || '-'}</td>
+                <td>${log.submittedTime || '-'}</td>
+                <td><strong>${log.primaryInvestigator || '-'}</strong></td>
+                <td>${log.researchAssistants || 'N/A'}</td>
+                <td>${log.numberOfParticipants ?? 0}</td>
+                <td>${log.equipmentUsed || '-'}</td>
+                <td><small>${log.entryId || '-'}</small></td>
+              </tr>
+            `;
+          });
+
+          html += `
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          `;
+        } else {
         html += `
           <div class="card">
             <div class="card-header d-flex justify-content-between align-items-center">
@@ -1418,6 +1581,7 @@ function updateReportForm() {
             </div>
           </div>
         `;
+        }
       } else {
         html += `
           <div class="alert alert-warning">
@@ -1439,7 +1603,10 @@ function updateReportForm() {
         'weekly': 'Weekly Report',
         'monthly': 'Monthly Report',
         'custom': 'Custom Date Range Report',
-        'staff': 'Individual Staff Report'
+        'staff': 'Individual Staff Report',
+        'research_daily': 'Research Daily Report',
+        'research_monthly': 'Research Monthly Report',
+        'research_custom': 'Research Date Range Report'
       };
       return titles[reportType] || 'Report';
     }
@@ -1462,11 +1629,20 @@ function updateReportForm() {
       }
       
       const data = window.currentReportData;
-      let csv = 'Date,Staff Name,Staff ID,Check-In Time,Check-Out Time,Duration (Hours),Status\n';
-      
-      data.logs.forEach(log => {
-        csv += `"${log.date}","${log.staffName}","${log.staffId}","${log.checkInTime || '-'}","${log.checkOutTime || '-'}","${log.duration || '-'}","${log.status}"\n`;
-      });
+      const isResearchReport = data.reportCategory === 'research' || String(data.reportType || '').startsWith('research_');
+      let csv = '';
+
+      if (isResearchReport) {
+        csv = 'Date,Time,Primary Investigator,Research Assistants,Participants,Equipment Used,Entry ID,Submitted At\n';
+        data.logs.forEach(log => {
+          csv += `"${log.submittedDate || '-'}","${log.submittedTime || '-'}","${log.primaryInvestigator || '-'}","${log.researchAssistants || 'N/A'}","${log.numberOfParticipants ?? 0}","${log.equipmentUsed || '-'}","${log.entryId || '-'}","${log.submittedAt || '-'}"\n`;
+        });
+      } else {
+        csv = 'Date,Staff Name,Staff ID,Check-In Time,Check-Out Time,Duration (Hours),Status\n';
+        data.logs.forEach(log => {
+          csv += `"${log.date}","${log.staffName}","${log.staffId}","${log.checkInTime || '-'}","${log.checkOutTime || '-'}","${log.duration || '-'}","${log.status}"\n`;
+        });
+      }
       
       // Create download link
       const blob = new Blob([csv], { type: 'text/csv' });
@@ -1513,6 +1689,77 @@ function updateReportForm() {
     }
     
     // Admin Actions
+    function loadQRDisplaySecurityStatus() {
+      google.script.run
+        .withSuccessHandler(function(result) {
+          const statusBox = document.getElementById('qrDisplaySecurityStatus');
+          if (!statusBox) return;
+
+          if (result.success) {
+            statusBox.innerHTML = `
+              <div class="alert alert-info mb-0">
+                <i class="bi bi-info-circle"></i>
+                Current QR display PIN version: <strong>${result.pinVersion}</strong>
+              </div>
+            `;
+          } else {
+            statusBox.innerHTML = `<div class="alert alert-warning mb-0">${result.message}</div>`;
+          }
+        })
+        .withFailureHandler(function(error) {
+          const statusBox = document.getElementById('qrDisplaySecurityStatus');
+          if (statusBox) {
+            statusBox.innerHTML = `<div class="alert alert-danger mb-0">Error: ${error.message}</div>`;
+          }
+        })
+        .getQRDisplaySecurityStatus();
+    }
+
+    function updateQRDisplayPinFromDashboard() {
+      const input = document.getElementById('qrDisplayPin');
+      const newPin = input.value.trim();
+
+      if (!/^\d{4,12}$/.test(newPin)) {
+        showAlert('warning', 'QR display PIN must be 4 to 12 digits.');
+        return;
+      }
+
+      if (!confirm('Update QR display PIN? Previously trusted display browsers will need the new PIN.')) {
+        return;
+      }
+
+      google.script.run
+        .withSuccessHandler(function(result) {
+          if (result.success) {
+            input.value = '';
+            showAlert('success', result.message);
+            loadQRDisplaySecurityStatus();
+          } else {
+            showAlert('danger', result.message);
+          }
+        })
+        .withFailureHandler(handleError)
+        .updateQRDisplayPin(newPin);
+    }
+
+    function setupQRRotationTriggers() {
+      if (!confirm('Set up staff QR rotations at 7:00 AM, 12:00 PM, and 3:00 PM? This will replace existing staff QR generation triggers.')) {
+        return;
+      }
+
+      google.script.run
+        .withSuccessHandler(function(result) {
+          if (result.success) {
+            showAlert('success', result.message);
+            loadCurrentQR();
+          } else {
+            showAlert('danger', result.message);
+          }
+        })
+        .withFailureHandler(handleError)
+        .setupScheduledQRRotations();
+    }
+
     function forceCheckOutAll() {
       if (!confirm('Force check-out all currently checked-in staff? This action cannot be undone.')) return;
       
@@ -1572,18 +1819,18 @@ function updateReportForm() {
                   <li><strong>Staff Sheet:</strong> Contains staff member information</li>
                   <li><strong>Check-In Logs Sheet:</strong> Records all check-in/out activities</li>
                   <li><strong>Admin Sheet:</strong> Stores admin credentials</li>
-                  <li><strong>QR Codes Sheet:</strong> Tracks daily QR codes</li>
+                  <li><strong>QR Codes Sheet:</strong> Tracks the currently active scheduled staff QR code</li>
                 </ul>
                 <h6 class="mt-3">First Time Setup:</h6>
                 <ol>
                   <li>Add admin credentials in the Admin sheet (Username, Password, Name)</li>
                   <li>Add staff members using the Staff Management tab</li>
-                  <li>Generate and display the daily QR code in your lab</li>
+                  <li>Set up QR rotation triggers and display the QR code in your lab</li>
                   <li>Share the web app URL with your staff</li>
                 </ol>
                 <h6 class="mt-3">Daily Operations:</h6>
                 <ul>
-                  <li>Generate a new QR code each day</li>
+                  <li>QR codes rotate automatically at 7:00 AM, 12:00 PM, and 3:00 PM</li>
                   <li>Monitor real-time check-ins from this dashboard</li>
                   <li>Generate reports as needed</li>
                   <li>Use force check-out at end of day if needed</li>
