@@ -173,6 +173,12 @@
       margin-top: 20px;
       font-size: 0.9rem;
     }
+
+    .quick-link {
+      border-radius: 10px;
+      font-weight: 600;
+      margin-top: 10px;
+    }
   </style>
 </head>
 <body>
@@ -205,7 +211,7 @@
         <h5 style="color: #374151; margin-bottom: 15px;">How to Check In</h5>
         <div style="text-align: left; background: #f3f4f6; padding: 20px; border-radius: 10px; margin-bottom: 20px;">
           <p style="margin-bottom: 10px;"><strong>Step 1:</strong> Go to the lab entrance</p>
-          <p style="margin-bottom: 10px;"><strong>Step 2:</strong> Find the daily QR code posted on the wall</p>
+          <p style="margin-bottom: 10px;"><strong>Step 2:</strong> Find the current staff QR code posted on the wall</p>
           <p style="margin-bottom: 10px;"><strong>Step 3:</strong> Use your phone camera to scan the QR code</p>
           <p style="margin-bottom: 0;"><strong>Step 4:</strong> The check-in page will open automatically</p>
         </div>
@@ -320,6 +326,11 @@
 
     <div class="footer-text">
       <i class="bi bi-shield-check"></i> Secure Lab Attendance Tracking
+      <div>
+        <a class="btn btn-sm btn-light quick-link" href="<?= ScriptApp.getService().getUrl() ?>?page=research">
+          <i class="bi bi-journal-richtext"></i> Research Sign-In Form
+        </a>
+      </div>
     </div>
   </div>
 
@@ -564,7 +575,7 @@
           }
         })
         .withFailureHandler(handleStaffLoginError)
-        .checkOut(currentStaffId);
+        .checkOut(currentStaffId, qrToken);
     }
     
     function showStaffAlert(type, message) {

@@ -1,9 +1,9 @@
 /**
  * Lab Staff Check-In/Check-Out System
- * SIMPLIFIED DAILY QR CODE VERSION
- * - Auto-generates at 7 AM daily
+ * SCHEDULED QR CODE VERSION
+ * - Auto-generates at 7 AM, 12 PM, and 3 PM daily
  * - Manual generation option
- * - Simple QR Display (no security)
+ * - PIN-protected QR Display
  * - All dates FORCED to plain text
  */
 
@@ -12,6 +12,16 @@ const STAFF_SHEET = "Staff";
 const CHECKIN_LOG_SHEET = "Check-In Logs";
 const ADMIN_SHEET = "Admin";
 const QR_CODE_SHEET = "QR Codes";
+const RESEARCH_SIGNIN_SHEET = "Research Sign-Ins";
+const QR_ROTATION_HOURS = [7, 12, 15];
+const QR_DISPLAY_DEFAULT_PIN = "8080";
+const QR_DISPLAY_PIN_HASH_PROPERTY = "QR_DISPLAY_PIN_HASH";
+const QR_DISPLAY_PIN_VERSION_PROPERTY = "QR_DISPLAY_PIN_VERSION";
+const TEMPORARY_QR_SHEET = "Temporary QR Codes";
+const TEMP_QR_STATUS_ACTIVE = "Active";
+const TEMP_QR_STATUS_REVOKED = "Revoked";
+const TEMP_QR_ALLOWED_CHECKIN = "checkin";
+const TEMP_QR_ALLOWED_BOTH = "both";
 const DATE_TIME_FORMAT = "yyyy-MM-dd HH:mm:ss";
 const DATE_FORMAT = "yyyy-MM-dd";
 
@@ -51,6 +61,14 @@ function doGet(e) {
       return HtmlService.createTemplateFromFile('GuestCheckInPage')
         .evaluate()
         .setTitle('Guest Check-In')
+        .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL)
+        .addMetaTag('viewport', 'width=device-width, initial-scale=1');
+    }
+
+    if (page === 'research') {
+      return HtmlService.createTemplateFromFile('ResearchSignInPage')
+        .evaluate()
+        .setTitle('Research Sign-In Form')
         .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL)
         .addMetaTag('viewport', 'width=device-width, initial-scale=1');
     }
@@ -149,12 +167,12 @@ function validateAdmin(username, password) {
 // ============================================
 
 /**
- * Auto-generate daily QR code at 7 AM
+ * Auto-generate staff QR code on the configured schedule
  */
 function automaticDailyQRGeneration() {
   try {
-    Logger.log("Starting automatic daily QR code generation...");
-    const result = generateDailyQRCode();
+    Logger.log("Starting automatic staff QR code generation...");
+    const result = generateDailyQRCode('System - Scheduled Trigger');
     
     if (result.success) {
       Logger.log("SUCCESS: " + result.message);
@@ -185,46 +203,52 @@ function testQRDisplay() {
 }
 
 /**
- * Setup daily trigger at 7 AM - RUN THIS ONCE
+ * Backward-compatible setup function for QR triggers - RUN THIS ONCE
  */
 function setupDailyQRTrigger() {
+  return setupScheduledQRRotations();
+}
+
+/**
+ * Setup staff QR rotation triggers at 7 AM, 12 PM, and 3 PM - RUN THIS ONCE
+ */
+function setupScheduledQRRotations() {
   try {
-    // Delete existing triggers
     const triggers = ScriptApp.getProjectTriggers();
     for (let i = 0; i < triggers.length; i++) {
       if (triggers[i].getHandlerFunction() === 'automaticDailyQRGeneration') {
         ScriptApp.deleteTrigger(triggers[i]);
       }
     }
-    
-    // Create 7 AM daily trigger
-    ScriptApp.newTrigger('automaticDailyQRGeneration')
-      .timeBased()
-      .atHour(7)
-      .everyDays(1)
-      .create();
-    
-    Logger.log("Daily QR trigger created! Runs at 7:00 AM daily.");
-    
-    // Generate first QR immediately
-    const firstQR = generateDailyQRCode();
-    
+
+    for (let i = 0; i < QR_ROTATION_HOURS.length; i++) {
+      ScriptApp.newTrigger('automaticDailyQRGeneration')
+        .timeBased()
+        .atHour(QR_ROTATION_HOURS[i])
+        .everyDays(1)
+        .create();
+    }
+
+    Logger.log('Staff QR rotation triggers created for: ' + QR_ROTATION_HOURS.join(', '));
+
+    const firstQR = generateDailyQRCode('System - Trigger Setup');
+
     return {
       success: true,
-      message: "Daily trigger set up at 7:00 AM. First QR code generated.",
+      message: 'Staff QR rotation triggers set for 7:00 AM, 12:00 PM, and 3:00 PM. Current QR refreshed.',
       firstQR: firstQR
     };
-    
+
   } catch (error) {
-    Logger.log("Error setting up trigger: " + error.message);
-    return { success: false, message: "Error: " + error.message };
+    Logger.log('Error setting up QR rotation triggers: ' + error.message);
+    return { success: false, message: 'Error: ' + error.message };
   }
 }
 
 /**
- * Generate daily QR code with BULLETPROOF plain text enforcement
+ * Generate staff QR code with BULLETPROOF plain text enforcement
  */
-function generateDailyQRCode() {
+function generateDailyQRCode(generatedBy) {
   try {
     const ss = SpreadsheetApp.getActive();
     let qrSheet = ss.getSheetByName(QR_CODE_SHEET);
@@ -267,7 +291,7 @@ function generateDailyQRCode() {
         // Update existing
         qrSheet.getRange(i + 1, 2).setValue(token);
         qrSheet.getRange(i + 1, 3).setValue(qrCodeUrl);
-        qrSheet.getRange(i + 1, 4).setValue('System');
+        qrSheet.getRange(i + 1, 4).setValue(generatedBy || 'System');
         qrSheet.getRange(i + 1, 5).setValue(timestampText);
         
         return {
@@ -287,7 +311,7 @@ function generateDailyQRCode() {
     qrSheet.getRange(newRow, 1).setValue(dateText);
     qrSheet.getRange(newRow, 2).setValue(token);
     qrSheet.getRange(newRow, 3).setValue(qrCodeUrl);
-    qrSheet.getRange(newRow, 4).setValue('System');
+    qrSheet.getRange(newRow, 4).setValue(generatedBy || 'System');
     qrSheet.getRange(newRow, 5).setValue(timestampText);
     
     return {
@@ -297,7 +321,7 @@ function generateDailyQRCode() {
       qrImageUrl: qrImageUrl,
       date: today,
       timestamp: timestamp,
-      message: "New daily QR code generated"
+      message: "New staff QR code generated"
     };
     
   } catch (error) {
@@ -318,46 +342,180 @@ function generateToken() {
   return token;
 }
 
+function getCurrentQRRotationStart(now) {
+  const current = now || new Date();
+  const rotationStart = new Date(current);
+  rotationStart.setMinutes(0, 0, 0);
+
+  let activeHour = 0;
+  for (let i = 0; i < QR_ROTATION_HOURS.length; i++) {
+    if (current.getHours() >= QR_ROTATION_HOURS[i]) {
+      activeHour = QR_ROTATION_HOURS[i];
+    }
+  }
+
+  rotationStart.setHours(activeHour);
+  return rotationStart;
+}
+
+function parseStoredDateTime(value) {
+  if (value instanceof Date) {
+    return value;
+  }
+
+  const normalized = String(value || '').replace(/^'/, '').trim().replace(' ', 'T');
+  const parsed = new Date(normalized);
+
+  if (isNaN(parsed.getTime())) {
+    return null;
+  }
+
+  return parsed;
+}
+
 /**
- * Validate QR token (daily)
+ * Validate the currently active QR token
  */
-function validateQRToken(token) {
+function validateQRToken(token, action) {
   try {
     if (!token) {
       return { valid: false, message: "No QR code scanned." };
     }
-    
-    const ss = SpreadsheetApp.getActive();
-    const qrSheet = ss.getSheetByName(QR_CODE_SHEET);
-    
-    if (!qrSheet) {
-      return { valid: false, message: "QR system not initialized." };
+
+    const currentQR = getCurrentQRCode();
+    if (!currentQR.success) {
+      return { valid: false, message: currentQR.message || "QR system not initialized." };
     }
-    
-    const today = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), DATE_FORMAT);
-    const data = qrSheet.getDataRange().getValues();
-    
-    for (let i = 1; i < data.length; i++) {
-      let sheetDate = data[i][0];
-      
-      if (sheetDate instanceof Date) {
-        sheetDate = Utilities.formatDate(sheetDate, Session.getScriptTimeZone(), DATE_FORMAT);
-      } else {
-        sheetDate = String(sheetDate).replace(/^'/, '').trim();
-      }
-      
-      const sheetToken = String(data[i][1]).trim();
-      const inputToken = String(token).trim();
-      
-      if (sheetDate === today && sheetToken === inputToken) {
-        return { valid: true, message: "QR code verified" };
-      }
+
+    if (String(currentQR.token).trim() === String(token).trim()) {
+      return { valid: true, message: "QR code verified", tokenType: "scheduled" };
     }
-    
+
+    const temporaryValidation = validateTemporaryQRToken(token, action || 'Check-In');
+    if (temporaryValidation.valid || temporaryValidation.found) {
+      return temporaryValidation;
+    }
+
     return { valid: false, message: "Invalid or expired QR code." };
     
   } catch (error) {
     return { valid: false, message: "Error: " + error.message };
+  }
+}
+
+function ensureTemporaryQRCodesSheet() {
+  const ss = SpreadsheetApp.getActive();
+  let sheet = ss.getSheetByName(TEMPORARY_QR_SHEET);
+
+  if (!sheet) {
+    sheet = ss.insertSheet(TEMPORARY_QR_SHEET);
+    sheet.appendRow([
+      'Temporary QR ID',
+      'Label',
+      'Token',
+      'QR Code URL',
+      'QR Image URL',
+      'Start DateTime',
+      'End DateTime',
+      'Allowed Action',
+      'Status',
+      'Created By',
+      'Created At',
+      'Notes',
+      'Revoked At'
+    ]);
+    sheet.getRange('A1:M1').setFontWeight('bold').setBackground('#111827').setFontColor('white');
+    sheet.setFrozenRows(1);
+  }
+
+  sheet.getRange('F:G').setNumberFormat('@STRING@');
+  sheet.getRange('K:K').setNumberFormat('@STRING@');
+  sheet.getRange('M:M').setNumberFormat('@STRING@');
+  return sheet;
+}
+
+function normalizeTemporaryQRAction(action) {
+  const safeAction = String(action || '').trim().toLowerCase();
+  if (safeAction === 'both' || safeAction === 'check-in and check-out') {
+    return TEMP_QR_ALLOWED_BOTH;
+  }
+
+  return TEMP_QR_ALLOWED_CHECKIN;
+}
+
+function formatStoredDateTime(value) {
+  const date = parseStoredDateTime(value);
+  if (!date) {
+    return String(value || '').replace(/^'/, '').trim();
+  }
+
+  return Utilities.formatDate(date, Session.getScriptTimeZone(), DATE_TIME_FORMAT);
+}
+
+function validateTemporaryQRToken(token, action) {
+  try {
+    const ss = SpreadsheetApp.getActive();
+    const sheet = ss.getSheetByName(TEMPORARY_QR_SHEET);
+
+    if (!sheet) {
+      return { valid: false, found: false, message: "No temporary QR codes found." };
+    }
+
+    const requestedAction = String(action || 'Check-In').trim();
+    const data = sheet.getDataRange().getValues();
+    const now = new Date();
+    const inputToken = String(token || '').trim();
+
+    for (let i = 1; i < data.length; i++) {
+      const rowToken = String(data[i][2] || '').trim();
+      if (rowToken !== inputToken) {
+        continue;
+      }
+
+      const status = String(data[i][8] || '').trim();
+      const start = parseStoredDateTime(data[i][5]);
+      const end = parseStoredDateTime(data[i][6]);
+      const allowedAction = normalizeTemporaryQRAction(data[i][7]);
+      const label = String(data[i][1] || 'Temporary QR').trim();
+
+      if (status !== TEMP_QR_STATUS_ACTIVE) {
+        return { valid: false, found: true, message: "This temporary QR code is not active." };
+      }
+
+      if (!start || !end) {
+        return { valid: false, found: true, message: "This temporary QR code has invalid dates." };
+      }
+
+      if (now < start) {
+        return { valid: false, found: true, message: "This temporary QR code is not active yet." };
+      }
+
+      if (now > end) {
+        return { valid: false, found: true, message: "This temporary QR code has expired." };
+      }
+
+      if (requestedAction === 'Check-Out' && allowedAction !== TEMP_QR_ALLOWED_BOTH) {
+        return { valid: false, found: true, message: "This temporary QR code is only valid for check-in." };
+      }
+
+      if (requestedAction !== 'Check-In' && requestedAction !== 'Check-Out') {
+        return { valid: false, found: true, message: "This temporary QR code is only valid for staff check-in/check-out." };
+      }
+
+      return {
+        valid: true,
+        found: true,
+        message: "Temporary QR code verified",
+        tokenType: "temporary",
+        temporaryQrId: data[i][0],
+        temporaryQrLabel: label,
+        allowedAction: allowedAction
+      };
+    }
+
+    return { valid: false, found: false, message: "Temporary QR code not found." };
+  } catch (error) {
+    return { valid: false, found: false, message: "Error: " + error.message };
   }
 }
 
@@ -387,6 +545,14 @@ function getCurrentQRCode() {
       }
       
       if (sheetDate === today) {
+        const generatedAt = parseStoredDateTime(data[i][4]);
+        const rotationStart = getCurrentQRRotationStart(new Date());
+
+        if (!generatedAt || generatedAt < rotationStart) {
+          Logger.log('Current QR is older than active rotation window. Generating a fresh QR code.');
+          return generateDailyQRCode('System - Scheduled Rotation');
+        }
+
         const qrCodeUrl = data[i][2];
         const qrImageUrl = `https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=${encodeURIComponent(qrCodeUrl)}`;
         
@@ -397,7 +563,9 @@ function getCurrentQRCode() {
           qrCodeUrl: qrCodeUrl,
           qrImageUrl: qrImageUrl,
           generatedBy: data[i][3],
-          timestamp: String(data[i][4]).replace(/^'/, '')
+          timestamp: String(data[i][4]).replace(/^'/, ''),
+          rotationStart: Utilities.formatDate(rotationStart, Session.getScriptTimeZone(), DATE_TIME_FORMAT),
+          rotationHours: QR_ROTATION_HOURS
         };
       }
     }
@@ -686,7 +854,7 @@ function verifyStaffAndGetStatus(staffId) {
 
 function checkIn(staffId, qrToken) {
   try {
-    const qrValidation = validateQRToken(qrToken);
+    const qrValidation = validateQRToken(qrToken, 'Check-In');
     if (!qrValidation.valid) {
       return { success: false, message: qrValidation.message };
     }
@@ -762,7 +930,10 @@ function checkIn(staffId, qrToken) {
     finalLogSheet.getRange(newRow, 7).setValue('');
     finalLogSheet.getRange(newRow, 8).setValue('');
     finalLogSheet.getRange(newRow, 9).setValue('Checked In');
-    finalLogSheet.getRange(newRow, 10).setValue('Checked in via QR code');
+    const checkInNote = qrValidation.tokenType === 'temporary'
+      ? `Checked in via temporary backdoor QR: ${qrValidation.temporaryQrLabel} (${qrValidation.temporaryQrId})`
+      : 'Checked in via QR code';
+    finalLogSheet.getRange(newRow, 10).setValue(checkInNote);
     
     return { 
       success: true, 
@@ -776,8 +947,13 @@ function checkIn(staffId, qrToken) {
   }
 }
 
-function checkOut(staffId) {
+function checkOut(staffId, qrToken) {
   try {
+    const qrValidation = validateQRToken(qrToken, 'Check-Out');
+    if (!qrValidation.valid) {
+      return { success: false, message: qrValidation.message };
+    }
+
     const staffResult = getStaffById(staffId);
     if (!staffResult.success) {
       return { success: false, message: "Invalid Staff ID" };
@@ -821,6 +997,11 @@ function checkOut(staffId) {
         logSheet.getRange(i + 1, 7).setValue(timeText);
         logSheet.getRange(i + 1, 8).setValue(duration.toFixed(2));
         logSheet.getRange(i + 1, 9).setValue('Checked Out');
+        if (qrValidation.tokenType === 'temporary') {
+          const existingNote = data[i][9] || '';
+          const checkOutNote = `Checked out via temporary backdoor QR: ${qrValidation.temporaryQrLabel} (${qrValidation.temporaryQrId})`;
+          logSheet.getRange(i + 1, 10).setValue(existingNote ? existingNote + '; ' + checkOutNote : checkOutNote);
+        }
         
         return { 
           success: true, 
@@ -1579,6 +1760,177 @@ function getLogsByStaff(staffId, startDate, endDate) {
   }
 }
 
+function getResearchSignInLogsByDate(date) {
+  try {
+    const ss = SpreadsheetApp.getActive();
+    const sheet = ss.getSheetByName(RESEARCH_SIGNIN_SHEET);
+
+    if (!sheet) {
+      return {
+        success: true,
+        logs: [],
+        date: date,
+        totalLogs: 0,
+        totalParticipants: 0,
+        uniqueInvestigators: 0
+      };
+    }
+
+    const data = sheet.getDataRange().getValues();
+    const targetDate = Utilities.formatDate(new Date(date + 'T00:00:00'), Session.getScriptTimeZone(), DATE_FORMAT);
+    const logs = [];
+    let totalParticipants = 0;
+    const investigatorSet = {};
+
+    for (let i = 1; i < data.length; i++) {
+      let submittedDate = data[i][6];
+
+      if (submittedDate instanceof Date) {
+        submittedDate = Utilities.formatDate(submittedDate, Session.getScriptTimeZone(), DATE_FORMAT);
+      } else {
+        submittedDate = String(submittedDate || '').replace(/^'/, '').trim();
+      }
+
+      if (submittedDate === targetDate) {
+        let submittedAt = data[i][5];
+        let submittedTime = data[i][7];
+
+        if (submittedAt instanceof Date) {
+          submittedAt = Utilities.formatDate(submittedAt, Session.getScriptTimeZone(), DATE_TIME_FORMAT);
+        } else {
+          submittedAt = String(submittedAt || '').replace(/^'/, '').trim();
+        }
+
+        if (submittedTime instanceof Date) {
+          submittedTime = Utilities.formatDate(submittedTime, Session.getScriptTimeZone(), 'HH:mm:ss');
+        } else {
+          submittedTime = String(submittedTime || '').replace(/^'/, '').trim();
+        }
+
+        const participants = Number(data[i][3]) || 0;
+        const primaryInvestigator = String(data[i][1] || '').trim();
+
+        logs.push({
+          entryId: data[i][0],
+          primaryInvestigator: primaryInvestigator,
+          researchAssistants: data[i][2] || 'N/A',
+          numberOfParticipants: participants,
+          equipmentUsed: data[i][4] || '',
+          submittedAt: submittedAt,
+          submittedDate: submittedDate,
+          submittedTime: submittedTime
+        });
+
+        totalParticipants += participants;
+        if (primaryInvestigator) {
+          investigatorSet[primaryInvestigator] = true;
+        }
+      }
+    }
+
+    return {
+      success: true,
+      logs: logs,
+      date: targetDate,
+      totalLogs: logs.length,
+      totalParticipants: totalParticipants,
+      uniqueInvestigators: Object.keys(investigatorSet).length,
+      reportCategory: 'research'
+    };
+  } catch (error) {
+    return { success: false, message: "Error: " + error.message, logs: [] };
+  }
+}
+
+function getResearchSignInLogsByDateRange(startDate, endDate) {
+  try {
+    const ss = SpreadsheetApp.getActive();
+    const sheet = ss.getSheetByName(RESEARCH_SIGNIN_SHEET);
+
+    if (!sheet) {
+      return {
+        success: true,
+        logs: [],
+        startDate: startDate,
+        endDate: endDate,
+        totalLogs: 0,
+        totalParticipants: 0,
+        uniqueInvestigators: 0
+      };
+    }
+
+    const start = new Date(startDate + 'T00:00:00');
+    const end = new Date(endDate + 'T23:59:59');
+    const data = sheet.getDataRange().getValues();
+    const logs = [];
+    let totalParticipants = 0;
+    const investigatorSet = {};
+
+    for (let i = 1; i < data.length; i++) {
+      let submittedDateValue = data[i][6];
+      if (!(submittedDateValue instanceof Date)) {
+        submittedDateValue = new Date(String(submittedDateValue || '').replace(/^'/, '').trim() + 'T00:00:00');
+      }
+
+      if (submittedDateValue >= start && submittedDateValue <= end) {
+        let submittedAt = data[i][5];
+        let submittedDate = data[i][6];
+        let submittedTime = data[i][7];
+
+        if (submittedAt instanceof Date) {
+          submittedAt = Utilities.formatDate(submittedAt, Session.getScriptTimeZone(), DATE_TIME_FORMAT);
+        } else {
+          submittedAt = String(submittedAt || '').replace(/^'/, '').trim();
+        }
+
+        if (submittedDate instanceof Date) {
+          submittedDate = Utilities.formatDate(submittedDate, Session.getScriptTimeZone(), DATE_FORMAT);
+        } else {
+          submittedDate = String(submittedDate || '').replace(/^'/, '').trim();
+        }
+
+        if (submittedTime instanceof Date) {
+          submittedTime = Utilities.formatDate(submittedTime, Session.getScriptTimeZone(), 'HH:mm:ss');
+        } else {
+          submittedTime = String(submittedTime || '').replace(/^'/, '').trim();
+        }
+
+        const participants = Number(data[i][3]) || 0;
+        const primaryInvestigator = String(data[i][1] || '').trim();
+
+        logs.push({
+          entryId: data[i][0],
+          primaryInvestigator: primaryInvestigator,
+          researchAssistants: data[i][2] || 'N/A',
+          numberOfParticipants: participants,
+          equipmentUsed: data[i][4] || '',
+          submittedAt: submittedAt,
+          submittedDate: submittedDate,
+          submittedTime: submittedTime
+        });
+
+        totalParticipants += participants;
+        if (primaryInvestigator) {
+          investigatorSet[primaryInvestigator] = true;
+        }
+      }
+    }
+
+    return {
+      success: true,
+      logs: logs,
+      startDate: Utilities.formatDate(start, Session.getScriptTimeZone(), DATE_FORMAT),
+      endDate: Utilities.formatDate(end, Session.getScriptTimeZone(), DATE_FORMAT),
+      totalLogs: logs.length,
+      totalParticipants: totalParticipants,
+      uniqueInvestigators: Object.keys(investigatorSet).length,
+      reportCategory: 'research'
+    };
+  } catch (error) {
+    return { success: false, message: "Error: " + error.message, logs: [] };
+  }
+}
+
 
 /**
  * Auto check-out all staff at 7 PM daily
@@ -1771,6 +2123,41 @@ function generateComprehensiveReport(reportType, staffId, startDate, endDate, si
         result = getLogsByStaff(staffId, staffStart, staffEnd);
         result.periodDescription = staffStart + ' to ' + staffEnd;
         break;
+
+      case 'research_daily':
+        if (!singleDate) {
+          return { success: false, message: "Date is required for research daily report" };
+        }
+        result = getResearchSignInLogsByDate(singleDate);
+        result.periodDescription = 'Research Sign-Ins for ' + singleDate;
+        break;
+
+      case 'research_custom':
+        if (!startDate || !endDate) {
+          return { success: false, message: "Start date and end date are required for research date range report" };
+        }
+        result = getResearchSignInLogsByDateRange(startDate, endDate);
+        result.periodDescription = 'Research Sign-Ins (' + startDate + ' to ' + endDate + ')';
+        break;
+
+      case 'research_monthly':
+        if (!singleDate) {
+          return { success: false, message: "Month is required for research monthly report" };
+        }
+
+        const researchMonthStart = singleDate + '-01';
+        const researchStartDate = new Date(researchMonthStart + 'T00:00:00');
+        if (isNaN(researchStartDate.getTime())) {
+          return { success: false, message: "Invalid month selected for research report" };
+        }
+
+        const researchEndDate = new Date(researchStartDate.getFullYear(), researchStartDate.getMonth() + 1, 0);
+        const researchStart = Utilities.formatDate(researchStartDate, timezone, DATE_FORMAT);
+        const researchEnd = Utilities.formatDate(researchEndDate, timezone, DATE_FORMAT);
+
+        result = getResearchSignInLogsByDateRange(researchStart, researchEnd);
+        result.periodDescription = Utilities.formatDate(researchStartDate, timezone, 'MMMM yyyy') + ' Research Sign-Ins';
+        break;
         
       default:
         return { success: false, message: "Invalid report type" };
@@ -1868,6 +2255,267 @@ function getGuestPortalQRCode() {
       guestCheckInUrl: guestCheckInUrl,
       guestQrImageUrl: guestQrImageUrl
     };
+  } catch (error) {
+    return { success: false, message: 'Error: ' + error.message };
+  }
+}
+
+function getResearchFormQRCode() {
+  try {
+    const webAppUrl = ScriptApp.getService().getUrl();
+    const researchFormUrl = webAppUrl + '?page=research';
+    const researchQrImageUrl = 'https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=' + encodeURIComponent(researchFormUrl);
+
+    return {
+      success: true,
+      researchFormUrl: researchFormUrl,
+      researchQrImageUrl: researchQrImageUrl
+    };
+  } catch (error) {
+    return { success: false, message: 'Error: ' + error.message };
+  }
+}
+
+function hashQRDisplayPin(pin) {
+  const digest = Utilities.computeDigest(
+    Utilities.DigestAlgorithm.SHA_256,
+    String(pin || ''),
+    Utilities.Charset.UTF_8
+  );
+
+  return digest.map(function(byte) {
+    const value = byte < 0 ? byte + 256 : byte;
+    return ('0' + value.toString(16)).slice(-2);
+  }).join('');
+}
+
+function ensureQRDisplayPinSettings() {
+  const properties = PropertiesService.getScriptProperties();
+  let pinHash = properties.getProperty(QR_DISPLAY_PIN_HASH_PROPERTY);
+  let pinVersion = properties.getProperty(QR_DISPLAY_PIN_VERSION_PROPERTY);
+
+  if (!pinHash) {
+    pinHash = hashQRDisplayPin(QR_DISPLAY_DEFAULT_PIN);
+    properties.setProperty(QR_DISPLAY_PIN_HASH_PROPERTY, pinHash);
+  }
+
+  if (!pinVersion) {
+    pinVersion = String(Date.now());
+    properties.setProperty(QR_DISPLAY_PIN_VERSION_PROPERTY, pinVersion);
+  }
+
+  return {
+    pinHash: pinHash,
+    pinVersion: pinVersion
+  };
+}
+
+function getQRDisplaySecurityStatus() {
+  try {
+    const settings = ensureQRDisplayPinSettings();
+    return {
+      success: true,
+      pinVersion: settings.pinVersion
+    };
+  } catch (error) {
+    return { success: false, message: 'Error: ' + error.message };
+  }
+}
+
+function validateQRDisplayPin(pin) {
+  try {
+    const safePin = String(pin || '').trim();
+    if (!safePin) {
+      return { success: false, message: 'PIN is required.' };
+    }
+
+    const settings = ensureQRDisplayPinSettings();
+    if (hashQRDisplayPin(safePin) !== settings.pinHash) {
+      return { success: false, message: 'Invalid QR display PIN.' };
+    }
+
+    return {
+      success: true,
+      message: 'QR display unlocked.',
+      pinVersion: settings.pinVersion
+    };
+  } catch (error) {
+    return { success: false, message: 'Error: ' + error.message };
+  }
+}
+
+function updateQRDisplayPin(newPin) {
+  try {
+    const safePin = String(newPin || '').trim();
+
+    if (!/^\d{4,12}$/.test(safePin)) {
+      return { success: false, message: 'PIN must be 4 to 12 digits.' };
+    }
+
+    const properties = PropertiesService.getScriptProperties();
+    const pinVersion = String(Date.now());
+
+    properties.setProperty(QR_DISPLAY_PIN_HASH_PROPERTY, hashQRDisplayPin(safePin));
+    properties.setProperty(QR_DISPLAY_PIN_VERSION_PROPERTY, pinVersion);
+
+    return {
+      success: true,
+      message: 'QR display PIN updated. All display browsers must enter the new PIN.',
+      pinVersion: pinVersion
+    };
+  } catch (error) {
+    return { success: false, message: 'Error: ' + error.message };
+  }
+}
+
+// ============================================
+// TEMPORARY BACKDOOR QR CODES
+// ============================================
+
+function createTemporaryQRCode(payload) {
+  try {
+    const safePayload = payload || {};
+    const label = String(safePayload.label || '').trim();
+    const startInput = String(safePayload.startDateTime || '').trim();
+    const endInput = String(safePayload.endDateTime || '').trim();
+    const allowedAction = normalizeTemporaryQRAction(safePayload.allowedAction);
+    const createdBy = String(safePayload.createdBy || 'Backdoor Console').trim();
+    const notes = String(safePayload.notes || '').trim();
+
+    if (!label) {
+      return { success: false, message: 'Temporary QR label/purpose is required.' };
+    }
+
+    if (!startInput || !endInput) {
+      return { success: false, message: 'Start and end date/time are required.' };
+    }
+
+    const start = new Date(startInput);
+    const end = new Date(endInput);
+
+    if (isNaN(start.getTime()) || isNaN(end.getTime())) {
+      return { success: false, message: 'Invalid start or end date/time.' };
+    }
+
+    if (end <= start) {
+      return { success: false, message: 'End date/time must be after start date/time.' };
+    }
+
+    const sheet = ensureTemporaryQRCodesSheet();
+    const token = generateToken();
+    const temporaryQrId = 'TQR-' + Date.now();
+    const webAppUrl = ScriptApp.getService().getUrl();
+    const qrCodeUrl = `${webAppUrl}?token=${token}`;
+    const qrImageUrl = `https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=${encodeURIComponent(qrCodeUrl)}`;
+    const now = new Date();
+    const startText = "'" + Utilities.formatDate(start, Session.getScriptTimeZone(), DATE_TIME_FORMAT);
+    const endText = "'" + Utilities.formatDate(end, Session.getScriptTimeZone(), DATE_TIME_FORMAT);
+    const createdAtText = "'" + Utilities.formatDate(now, Session.getScriptTimeZone(), DATE_TIME_FORMAT);
+
+    sheet.appendRow([
+      temporaryQrId,
+      label,
+      token,
+      qrCodeUrl,
+      qrImageUrl,
+      startText,
+      endText,
+      allowedAction,
+      TEMP_QR_STATUS_ACTIVE,
+      createdBy,
+      createdAtText,
+      notes,
+      ''
+    ]);
+
+    return {
+      success: true,
+      message: 'Temporary staff QR code generated successfully.',
+      temporaryQrId: temporaryQrId,
+      label: label,
+      token: token,
+      qrCodeUrl: qrCodeUrl,
+      qrImageUrl: qrImageUrl,
+      startDateTime: String(startText).replace(/^'/, ''),
+      endDateTime: String(endText).replace(/^'/, ''),
+      allowedAction: allowedAction,
+      status: TEMP_QR_STATUS_ACTIVE
+    };
+  } catch (error) {
+    return { success: false, message: 'Error: ' + error.message };
+  }
+}
+
+function createTemporaryQRcode(payload) {
+  return createTemporaryQRCode(payload);
+}
+
+function getTemporaryQRCodes() {
+  try {
+    const sheet = ensureTemporaryQRCodesSheet();
+    const data = sheet.getDataRange().getValues();
+    const now = new Date();
+    const codes = [];
+
+    for (let i = 1; i < data.length; i++) {
+      if (!data[i][0]) continue;
+
+      const start = parseStoredDateTime(data[i][5]);
+      const end = parseStoredDateTime(data[i][6]);
+      const storedStatus = String(data[i][8] || '').trim() || TEMP_QR_STATUS_ACTIVE;
+      let effectiveStatus = storedStatus;
+
+      if (storedStatus === TEMP_QR_STATUS_ACTIVE && end && now > end) {
+        effectiveStatus = 'Expired';
+      } else if (storedStatus === TEMP_QR_STATUS_ACTIVE && start && now < start) {
+        effectiveStatus = 'Scheduled';
+      }
+
+      codes.push({
+        temporaryQrId: data[i][0],
+        label: data[i][1],
+        token: data[i][2],
+        qrCodeUrl: data[i][3],
+        qrImageUrl: data[i][4],
+        startDateTime: formatStoredDateTime(data[i][5]),
+        endDateTime: formatStoredDateTime(data[i][6]),
+        allowedAction: normalizeTemporaryQRAction(data[i][7]),
+        status: storedStatus,
+        effectiveStatus: effectiveStatus,
+        createdBy: data[i][9],
+        createdAt: formatStoredDateTime(data[i][10]),
+        notes: data[i][11] || '',
+        revokedAt: formatStoredDateTime(data[i][12])
+      });
+    }
+
+    codes.sort((a, b) => new Date(b.createdAt.replace(' ', 'T')) - new Date(a.createdAt.replace(' ', 'T')));
+    return { success: true, codes: codes };
+  } catch (error) {
+    return { success: false, message: 'Error: ' + error.message, codes: [] };
+  }
+}
+
+function revokeTemporaryQRCode(temporaryQrId) {
+  try {
+    const safeId = String(temporaryQrId || '').trim();
+    if (!safeId) {
+      return { success: false, message: 'Temporary QR ID is required.' };
+    }
+
+    const sheet = ensureTemporaryQRCodesSheet();
+    const data = sheet.getDataRange().getValues();
+    const revokedAt = "'" + Utilities.formatDate(new Date(), Session.getScriptTimeZone(), DATE_TIME_FORMAT);
+
+    for (let i = 1; i < data.length; i++) {
+      if (String(data[i][0]).trim() === safeId) {
+        sheet.getRange(i + 1, 9).setValue(TEMP_QR_STATUS_REVOKED);
+        sheet.getRange(i + 1, 13).setValue(revokedAt);
+        return { success: true, message: 'Temporary QR code revoked successfully.' };
+      }
+    }
+
+    return { success: false, message: 'Temporary QR code not found.' };
   } catch (error) {
     return { success: false, message: 'Error: ' + error.message };
   }
@@ -2059,12 +2707,12 @@ function verifyGuestAndGetStatus(firstName, lastName) {
  */
 function guestCheckIn(firstName, lastName, qrToken) {
   try {
-    const qrValidation = validateQRToken(qrToken);
+    const qrValidation = validateQRToken(qrToken, 'Guest Check-In');
     if (!qrValidation.valid) {
       return { success: false, message: qrValidation.message };
     }
 
-    return processGuestCheckIn(firstName, lastName, 'Guest check-in via staff daily QR');
+    return processGuestCheckIn(firstName, lastName, 'Guest check-in via current staff QR');
   } catch (error) {
     Logger.log('Error in guestCheckIn: ' + error.message);
     return { success: false, message: "Error: " + error.message };
@@ -2371,6 +3019,90 @@ function setupAutoGuestCheckOut() {
     return { success: false, message: "Error: " + error.message };
   }
 }
+
+// ============================================
+// RESEARCH SIGN-IN FORM
+// ============================================
+
+function ensureResearchSignInSheet() {
+  const ss = SpreadsheetApp.getActive();
+  let sheet = ss.getSheetByName(RESEARCH_SIGNIN_SHEET);
+
+  if (!sheet) {
+    sheet = ss.insertSheet(RESEARCH_SIGNIN_SHEET);
+    sheet.appendRow([
+      'Entry ID',
+      'Primary Investigator',
+      'Research Assistants',
+      'Number of Participants',
+      'Equipment Used',
+      'Submitted At',
+      'Submitted Date',
+      'Submitted Time'
+    ]);
+    sheet
+      .getRange('A1:H1')
+      .setFontWeight('bold')
+      .setBackground('#1d4ed8')
+      .setFontColor('white');
+    sheet.setFrozenRows(1);
+  }
+
+  sheet.getRange('F:H').setNumberFormat('@STRING@');
+  return sheet;
+}
+
+function submitResearchSignIn(formData) {
+  try {
+    const primaryInvestigator = String(formData.primaryInvestigator || '').trim();
+    const researchAssistants = String(formData.researchAssistants || '').trim();
+    const participantsRaw = String(formData.numberOfParticipants || '').trim();
+    const equipmentUsed = String(formData.equipmentUsed || '').trim();
+
+    if (!primaryInvestigator) {
+      return { success: false, message: 'Primary investigator is required.' };
+    }
+
+    if (!participantsRaw) {
+      return { success: false, message: 'Number of participants is required.' };
+    }
+
+    const participantCount = Number(participantsRaw);
+    if (!Number.isInteger(participantCount) || participantCount < 0) {
+      return { success: false, message: 'Participants must be a whole number (0 or greater).' };
+    }
+
+    if (!equipmentUsed) {
+      return { success: false, message: 'Equipment used is required.' };
+    }
+
+    const sheet = ensureResearchSignInSheet();
+    const now = new Date();
+    const timestamp = Utilities.formatDate(now, Session.getScriptTimeZone(), DATE_TIME_FORMAT);
+    const dateOnly = Utilities.formatDate(now, Session.getScriptTimeZone(), DATE_FORMAT);
+    const timeOnly = Utilities.formatDate(now, Session.getScriptTimeZone(), 'HH:mm:ss');
+    const entryId = 'RS-' + Date.now();
+
+    const newRow = sheet.getLastRow() + 1;
+    sheet.getRange(newRow, 1).setValue(entryId);
+    sheet.getRange(newRow, 2).setValue(primaryInvestigator);
+    sheet.getRange(newRow, 3).setValue(researchAssistants || 'N/A');
+    sheet.getRange(newRow, 4).setValue(participantCount);
+    sheet.getRange(newRow, 5).setValue(equipmentUsed);
+    sheet.getRange(newRow, 6).setValue("'" + timestamp);
+    sheet.getRange(newRow, 7).setValue("'" + dateOnly);
+    sheet.getRange(newRow, 8).setValue("'" + timeOnly);
+
+    return {
+      success: true,
+      message: 'Research activity recorded successfully.',
+      entryId: entryId,
+      submittedAt: timestamp
+    };
+  } catch (error) {
+    return { success: false, message: 'Error: ' + error.message };
+  }
+}
 // ============================================
 // BACKDOOR SCHEDULER CONSOLE
 // ============================================
@@ -2431,11 +3163,13 @@ function getBackdoorConsoleData() {
   try {
     const staffResult = getAllStaff();
     const schedulesResult = getBackdoorSchedules();
+    const temporaryQRResult = getTemporaryQRCodes();
 
     return {
       success: true,
       staff: staffResult.success ? staffResult.staff : [],
       schedules: schedulesResult.success ? schedulesResult.schedules : [],
+      temporaryQRCodes: temporaryQRResult.success ? temporaryQRResult.codes : [],
       timezone: Session.getScriptTimeZone(),
       now: Utilities.formatDate(new Date(), Session.getScriptTimeZone(), DATE_TIME_FORMAT)
     };
