@@ -2446,6 +2446,10 @@ function createTemporaryQRCode(payload) {
   }
 }
 
+function createTemporaryQRcode(payload) {
+  return createTemporaryQRCode(payload);
+}
+
 function getTemporaryQRCodes() {
   try {
     const sheet = ensureTemporaryQRCodesSheet();

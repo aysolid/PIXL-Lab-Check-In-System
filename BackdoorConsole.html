@@ -718,7 +718,7 @@
         .withFailureHandler(function (error) {
           showAlert('danger', 'Error generating temporary QR: ' + error.message);
         })
-        .createTemporaryQRCode(payload);
+        .createTemporaryQRcode(payload);
     }
 
     function refreshTemporaryQRCodes() {
