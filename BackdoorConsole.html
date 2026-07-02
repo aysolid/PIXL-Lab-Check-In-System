@@ -56,6 +56,13 @@
       font-size: 0.85rem;
       color: #6b7280;
     }
+
+    .temporary-qr-preview img {
+      max-width: 180px;
+      border-radius: 12px;
+      border: 8px solid #fff;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.15);
+    }
   </style>
 </head>
 <body>
@@ -209,6 +216,74 @@
     </div>
 
     <div class="panel">
+      <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+        <div>
+          <h5 class="mb-1"><i class="bi bi-qr-code"></i> Temporary Staff QR Access</h5>
+          <div class="small-muted">Generate a backdoor QR that works only during a specific grace period.</div>
+        </div>
+        <button class="btn btn-outline-secondary btn-sm" onclick="refreshTemporaryQRCodes()">
+          <i class="bi bi-arrow-clockwise"></i> Refresh QR List
+        </button>
+      </div>
+
+      <div class="row g-3">
+        <div class="col-md-4">
+          <label class="form-label">Label / Purpose</label>
+          <input id="tempQrLabel" class="form-control" placeholder="e.g., Conference week grace QR">
+        </div>
+        <div class="col-md-4">
+          <label class="form-label">Created By</label>
+          <input id="tempQrCreatedBy" class="form-control" value="Backdoor Console">
+        </div>
+        <div class="col-md-4">
+          <label class="form-label">Allowed Action</label>
+          <select id="tempQrAllowedAction" class="form-select">
+            <option value="checkin">Check-In only</option>
+            <option value="both">Check-In and Check-Out</option>
+          </select>
+        </div>
+        <div class="col-md-4">
+          <label class="form-label">Start Date & Time</label>
+          <input id="tempQrStart" type="datetime-local" class="form-control">
+        </div>
+        <div class="col-md-4">
+          <label class="form-label">End Date & Time</label>
+          <input id="tempQrEnd" type="datetime-local" class="form-control">
+        </div>
+        <div class="col-md-4">
+          <label class="form-label">Notes</label>
+          <input id="tempQrNotes" class="form-control" placeholder="Optional note">
+        </div>
+        <div class="col-12">
+          <button class="btn btn-dark" onclick="generateTemporaryQR()">
+            <i class="bi bi-qr-code-scan"></i> Generate Temporary QR
+          </button>
+        </div>
+      </div>
+
+      <div id="temporaryQrResult" class="mt-3"></div>
+
+      <hr>
+      <div class="table-responsive">
+        <table class="table table-bordered table-sm">
+          <thead class="table-light">
+            <tr>
+              <th>Label</th>
+              <th>Window</th>
+              <th>Allowed Action</th>
+              <th>Status</th>
+              <th>Created</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody id="temporaryQrBody">
+            <tr><td colspan="6" class="text-muted">No temporary QR codes loaded.</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="panel">
       <div class="d-flex justify-content-between align-items-center mb-2">
         <h5 class="mb-0"><i class="bi bi-list-task"></i> Backdoor Queue</h5>
         <div class="small-muted" id="lastRefresh"></div>
@@ -248,6 +323,7 @@
 
     let allSchedules = [];
     let pendingEntries = [];
+    let allTemporaryQRCodes = [];
 
     document.getElementById('backdoorLoginForm').addEventListener('submit', function (e) {
       e.preventDefault();
@@ -273,6 +349,7 @@
 
     function initConsole() {
       renderWeekdayButtons();
+      setDefaultTemporaryQRDates();
       refreshAll();
     }
 
@@ -286,7 +363,9 @@
 
           populateStaff(result.staff || []);
           allSchedules = result.schedules || [];
+          allTemporaryQRCodes = result.temporaryQRCodes || [];
           renderQueue(allSchedules);
+          renderTemporaryQRCodes(allTemporaryQRCodes);
           document.getElementById('timezoneText').textContent = `Timezone: ${result.timezone} | Server time: ${result.now}`;
           document.getElementById('lastRefresh').textContent = `Last refresh: ${new Date().toLocaleString()}`;
         })
@@ -294,6 +373,16 @@
           showAlert('danger', 'Error loading data: ' + error.message);
         })
         .getBackdoorConsoleData();
+    }
+
+    function setDefaultTemporaryQRDates() {
+      const now = new Date();
+      now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
+      const end = new Date(now);
+      end.setDate(end.getDate() + 7);
+
+      document.getElementById('tempQrStart').value = now.toISOString().slice(0, 16);
+      document.getElementById('tempQrEnd').value = end.toISOString().slice(0, 16);
     }
 
     function populateStaff(staff) {
@@ -573,6 +662,165 @@
           showAlert('danger', 'Error cancelling schedule: ' + error.message);
         })
         .cancelBackdoorSchedule(scheduleId);
+    }
+
+    function generateTemporaryQR() {
+      const payload = {
+        label: document.getElementById('tempQrLabel').value.trim(),
+        startDateTime: document.getElementById('tempQrStart').value,
+        endDateTime: document.getElementById('tempQrEnd').value,
+        allowedAction: document.getElementById('tempQrAllowedAction').value,
+        createdBy: document.getElementById('tempQrCreatedBy').value.trim() || 'Backdoor Console',
+        notes: document.getElementById('tempQrNotes').value.trim()
+      };
+
+      if (!payload.label || !payload.startDateTime || !payload.endDateTime) {
+        showAlert('warning', 'Please provide label, start date/time, and end date/time for the temporary QR.');
+        return;
+      }
+
+      google.script.run
+        .withSuccessHandler(function (result) {
+          if (!result.success) {
+            showAlert('danger', result.message);
+            return;
+          }
+
+          document.getElementById('temporaryQrResult').innerHTML = `
+            <div class="alert alert-success">
+              <div class="row g-3 align-items-center">
+                <div class="col-md-auto temporary-qr-preview text-center">
+                  <img src="${result.qrImageUrl}" alt="Temporary QR Code">
+                </div>
+                <div class="col">
+                  <h6 class="mb-1">${result.label}</h6>
+                  <p class="mb-1"><strong>Valid:</strong> ${result.startDateTime} to ${result.endDateTime}</p>
+                  <p class="mb-2"><strong>Allowed:</strong> ${formatAllowedAction(result.allowedAction)}</p>
+                  <div class="input-group input-group-sm">
+                    <input class="form-control" value="${result.qrCodeUrl}" readonly id="latestTemporaryQrUrl">
+                    <button class="btn btn-outline-primary" onclick="copyTemporaryQRUrl('latestTemporaryQrUrl')">
+                      <i class="bi bi-clipboard"></i> Copy
+                    </button>
+                    <button class="btn btn-outline-success" onclick="downloadTemporaryQR('${result.qrImageUrl}', '${result.temporaryQrId}')">
+                      <i class="bi bi-download"></i> Download
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          `;
+
+          document.getElementById('tempQrLabel').value = '';
+          document.getElementById('tempQrNotes').value = '';
+          showAlert('success', result.message);
+          refreshTemporaryQRCodes();
+        })
+        .withFailureHandler(function (error) {
+          showAlert('danger', 'Error generating temporary QR: ' + error.message);
+        })
+        .createTemporaryQRCode(payload);
+    }
+
+    function refreshTemporaryQRCodes() {
+      google.script.run
+        .withSuccessHandler(function (result) {
+          if (!result.success) {
+            showAlert('danger', result.message);
+            return;
+          }
+
+          allTemporaryQRCodes = result.codes || [];
+          renderTemporaryQRCodes(allTemporaryQRCodes);
+        })
+        .withFailureHandler(function (error) {
+          showAlert('danger', 'Error loading temporary QR codes: ' + error.message);
+        })
+        .getTemporaryQRCodes();
+    }
+
+    function renderTemporaryQRCodes(items) {
+      const body = document.getElementById('temporaryQrBody');
+
+      if (!items.length) {
+        body.innerHTML = '<tr><td colspan="6" class="text-muted">No temporary QR codes found.</td></tr>';
+        return;
+      }
+
+      body.innerHTML = items.map(item => {
+        const badgeColor = item.effectiveStatus === 'Active' ? 'success'
+          : item.effectiveStatus === 'Scheduled' ? 'info'
+          : item.effectiveStatus === 'Expired' ? 'secondary'
+          : item.effectiveStatus === 'Revoked' ? 'danger'
+          : 'secondary';
+
+        const canRevoke = item.status === 'Active';
+        const urlInputId = 'temporaryQrUrl_' + String(item.temporaryQrId).replace(/[^a-zA-Z0-9_]/g, '_');
+
+        return `
+          <tr>
+            <td>
+              <strong>${item.label}</strong><br>
+              <small class="text-muted">${item.temporaryQrId}</small>
+            </td>
+            <td>
+              <small>${item.startDateTime}<br>to ${item.endDateTime}</small>
+            </td>
+            <td>${formatAllowedAction(item.allowedAction)}</td>
+            <td><span class="badge text-bg-${badgeColor}">${item.effectiveStatus}</span></td>
+            <td>
+              <small>${item.createdAt}<br>${item.createdBy || '-'}</small>
+            </td>
+            <td>
+              <input type="text" class="form-control form-control-sm mb-1" value="${item.qrCodeUrl}" id="${urlInputId}" readonly>
+              <div class="btn-group btn-group-sm">
+                <button class="btn btn-outline-primary" onclick="copyTemporaryQRUrl('${urlInputId}')">Copy</button>
+                <button class="btn btn-outline-success" onclick="downloadTemporaryQR('${item.qrImageUrl}', '${item.temporaryQrId}')">Download</button>
+                ${canRevoke ? `<button class="btn btn-outline-danger" onclick="revokeTemporaryQR('${item.temporaryQrId}')">Revoke</button>` : ''}
+              </div>
+            </td>
+          </tr>
+        `;
+      }).join('');
+    }
+
+    function formatAllowedAction(action) {
+      return action === 'both' ? 'Check-In and Check-Out' : 'Check-In only';
+    }
+
+    function copyTemporaryQRUrl(inputId) {
+      const input = document.getElementById(inputId);
+      input.select();
+      input.setSelectionRange(0, 99999);
+      document.execCommand('copy');
+      showAlert('success', 'Temporary QR URL copied.');
+    }
+
+    function downloadTemporaryQR(qrImageUrl, temporaryQrId) {
+      const link = document.createElement('a');
+      link.href = qrImageUrl;
+      link.download = `${temporaryQrId || 'temporary-staff-qr'}.png`;
+      link.click();
+    }
+
+    function revokeTemporaryQR(temporaryQrId) {
+      if (!confirm('Revoke this temporary QR code? It will stop working immediately.')) {
+        return;
+      }
+
+      google.script.run
+        .withSuccessHandler(function (result) {
+          if (!result.success) {
+            showAlert('danger', result.message);
+            return;
+          }
+
+          showAlert('success', result.message);
+          refreshTemporaryQRCodes();
+        })
+        .withFailureHandler(function (error) {
+          showAlert('danger', 'Error revoking temporary QR: ' + error.message);
+        })
+        .revokeTemporaryQRCode(temporaryQrId);
     }
 
     function renderQueue(items) {

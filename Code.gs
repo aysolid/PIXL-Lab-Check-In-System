@@ -17,6 +17,11 @@ const QR_ROTATION_HOURS = [7, 12, 15];
 const QR_DISPLAY_DEFAULT_PIN = "8080";
 const QR_DISPLAY_PIN_HASH_PROPERTY = "QR_DISPLAY_PIN_HASH";
 const QR_DISPLAY_PIN_VERSION_PROPERTY = "QR_DISPLAY_PIN_VERSION";
+const TEMPORARY_QR_SHEET = "Temporary QR Codes";
+const TEMP_QR_STATUS_ACTIVE = "Active";
+const TEMP_QR_STATUS_REVOKED = "Revoked";
+const TEMP_QR_ALLOWED_CHECKIN = "checkin";
+const TEMP_QR_ALLOWED_BOTH = "both";
 const DATE_TIME_FORMAT = "yyyy-MM-dd HH:mm:ss";
 const DATE_FORMAT = "yyyy-MM-dd";
 
@@ -371,7 +376,7 @@ function parseStoredDateTime(value) {
 /**
  * Validate the currently active QR token
  */
-function validateQRToken(token) {
+function validateQRToken(token, action) {
   try {
     if (!token) {
       return { valid: false, message: "No QR code scanned." };
@@ -383,13 +388,134 @@ function validateQRToken(token) {
     }
 
     if (String(currentQR.token).trim() === String(token).trim()) {
-      return { valid: true, message: "QR code verified" };
+      return { valid: true, message: "QR code verified", tokenType: "scheduled" };
+    }
+
+    const temporaryValidation = validateTemporaryQRToken(token, action || 'Check-In');
+    if (temporaryValidation.valid || temporaryValidation.found) {
+      return temporaryValidation;
     }
 
     return { valid: false, message: "Invalid or expired QR code." };
     
   } catch (error) {
     return { valid: false, message: "Error: " + error.message };
+  }
+}
+
+function ensureTemporaryQRCodesSheet() {
+  const ss = SpreadsheetApp.getActive();
+  let sheet = ss.getSheetByName(TEMPORARY_QR_SHEET);
+
+  if (!sheet) {
+    sheet = ss.insertSheet(TEMPORARY_QR_SHEET);
+    sheet.appendRow([
+      'Temporary QR ID',
+      'Label',
+      'Token',
+      'QR Code URL',
+      'QR Image URL',
+      'Start DateTime',
+      'End DateTime',
+      'Allowed Action',
+      'Status',
+      'Created By',
+      'Created At',
+      'Notes',
+      'Revoked At'
+    ]);
+    sheet.getRange('A1:M1').setFontWeight('bold').setBackground('#111827').setFontColor('white');
+    sheet.setFrozenRows(1);
+  }
+
+  sheet.getRange('F:G').setNumberFormat('@STRING@');
+  sheet.getRange('K:K').setNumberFormat('@STRING@');
+  sheet.getRange('M:M').setNumberFormat('@STRING@');
+  return sheet;
+}
+
+function normalizeTemporaryQRAction(action) {
+  const safeAction = String(action || '').trim().toLowerCase();
+  if (safeAction === 'both' || safeAction === 'check-in and check-out') {
+    return TEMP_QR_ALLOWED_BOTH;
+  }
+
+  return TEMP_QR_ALLOWED_CHECKIN;
+}
+
+function formatStoredDateTime(value) {
+  const date = parseStoredDateTime(value);
+  if (!date) {
+    return String(value || '').replace(/^'/, '').trim();
+  }
+
+  return Utilities.formatDate(date, Session.getScriptTimeZone(), DATE_TIME_FORMAT);
+}
+
+function validateTemporaryQRToken(token, action) {
+  try {
+    const ss = SpreadsheetApp.getActive();
+    const sheet = ss.getSheetByName(TEMPORARY_QR_SHEET);
+
+    if (!sheet) {
+      return { valid: false, found: false, message: "No temporary QR codes found." };
+    }
+
+    const requestedAction = String(action || 'Check-In').trim();
+    const data = sheet.getDataRange().getValues();
+    const now = new Date();
+    const inputToken = String(token || '').trim();
+
+    for (let i = 1; i < data.length; i++) {
+      const rowToken = String(data[i][2] || '').trim();
+      if (rowToken !== inputToken) {
+        continue;
+      }
+
+      const status = String(data[i][8] || '').trim();
+      const start = parseStoredDateTime(data[i][5]);
+      const end = parseStoredDateTime(data[i][6]);
+      const allowedAction = normalizeTemporaryQRAction(data[i][7]);
+      const label = String(data[i][1] || 'Temporary QR').trim();
+
+      if (status !== TEMP_QR_STATUS_ACTIVE) {
+        return { valid: false, found: true, message: "This temporary QR code is not active." };
+      }
+
+      if (!start || !end) {
+        return { valid: false, found: true, message: "This temporary QR code has invalid dates." };
+      }
+
+      if (now < start) {
+        return { valid: false, found: true, message: "This temporary QR code is not active yet." };
+      }
+
+      if (now > end) {
+        return { valid: false, found: true, message: "This temporary QR code has expired." };
+      }
+
+      if (requestedAction === 'Check-Out' && allowedAction !== TEMP_QR_ALLOWED_BOTH) {
+        return { valid: false, found: true, message: "This temporary QR code is only valid for check-in." };
+      }
+
+      if (requestedAction !== 'Check-In' && requestedAction !== 'Check-Out') {
+        return { valid: false, found: true, message: "This temporary QR code is only valid for staff check-in/check-out." };
+      }
+
+      return {
+        valid: true,
+        found: true,
+        message: "Temporary QR code verified",
+        tokenType: "temporary",
+        temporaryQrId: data[i][0],
+        temporaryQrLabel: label,
+        allowedAction: allowedAction
+      };
+    }
+
+    return { valid: false, found: false, message: "Temporary QR code not found." };
+  } catch (error) {
+    return { valid: false, found: false, message: "Error: " + error.message };
   }
 }
 
@@ -728,7 +854,7 @@ function verifyStaffAndGetStatus(staffId) {
 
 function checkIn(staffId, qrToken) {
   try {
-    const qrValidation = validateQRToken(qrToken);
+    const qrValidation = validateQRToken(qrToken, 'Check-In');
     if (!qrValidation.valid) {
       return { success: false, message: qrValidation.message };
     }
@@ -804,7 +930,10 @@ function checkIn(staffId, qrToken) {
     finalLogSheet.getRange(newRow, 7).setValue('');
     finalLogSheet.getRange(newRow, 8).setValue('');
     finalLogSheet.getRange(newRow, 9).setValue('Checked In');
-    finalLogSheet.getRange(newRow, 10).setValue('Checked in via QR code');
+    const checkInNote = qrValidation.tokenType === 'temporary'
+      ? `Checked in via temporary backdoor QR: ${qrValidation.temporaryQrLabel} (${qrValidation.temporaryQrId})`
+      : 'Checked in via QR code';
+    finalLogSheet.getRange(newRow, 10).setValue(checkInNote);
     
     return { 
       success: true, 
@@ -820,7 +949,7 @@ function checkIn(staffId, qrToken) {
 
 function checkOut(staffId, qrToken) {
   try {
-    const qrValidation = validateQRToken(qrToken);
+    const qrValidation = validateQRToken(qrToken, 'Check-Out');
     if (!qrValidation.valid) {
       return { success: false, message: qrValidation.message };
     }
@@ -868,6 +997,11 @@ function checkOut(staffId, qrToken) {
         logSheet.getRange(i + 1, 7).setValue(timeText);
         logSheet.getRange(i + 1, 8).setValue(duration.toFixed(2));
         logSheet.getRange(i + 1, 9).setValue('Checked Out');
+        if (qrValidation.tokenType === 'temporary') {
+          const existingNote = data[i][9] || '';
+          const checkOutNote = `Checked out via temporary backdoor QR: ${qrValidation.temporaryQrLabel} (${qrValidation.temporaryQrId})`;
+          logSheet.getRange(i + 1, 10).setValue(existingNote ? existingNote + '; ' + checkOutNote : checkOutNote);
+        }
         
         return { 
           success: true, 
@@ -2235,6 +2369,155 @@ function updateQRDisplayPin(newPin) {
 }
 
 // ============================================
+// TEMPORARY BACKDOOR QR CODES
+// ============================================
+
+function createTemporaryQRCode(payload) {
+  try {
+    const safePayload = payload || {};
+    const label = String(safePayload.label || '').trim();
+    const startInput = String(safePayload.startDateTime || '').trim();
+    const endInput = String(safePayload.endDateTime || '').trim();
+    const allowedAction = normalizeTemporaryQRAction(safePayload.allowedAction);
+    const createdBy = String(safePayload.createdBy || 'Backdoor Console').trim();
+    const notes = String(safePayload.notes || '').trim();
+
+    if (!label) {
+      return { success: false, message: 'Temporary QR label/purpose is required.' };
+    }
+
+    if (!startInput || !endInput) {
+      return { success: false, message: 'Start and end date/time are required.' };
+    }
+
+    const start = new Date(startInput);
+    const end = new Date(endInput);
+
+    if (isNaN(start.getTime()) || isNaN(end.getTime())) {
+      return { success: false, message: 'Invalid start or end date/time.' };
+    }
+
+    if (end <= start) {
+      return { success: false, message: 'End date/time must be after start date/time.' };
+    }
+
+    const sheet = ensureTemporaryQRCodesSheet();
+    const token = generateToken();
+    const temporaryQrId = 'TQR-' + Date.now();
+    const webAppUrl = ScriptApp.getService().getUrl();
+    const qrCodeUrl = `${webAppUrl}?token=${token}`;
+    const qrImageUrl = `https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=${encodeURIComponent(qrCodeUrl)}`;
+    const now = new Date();
+    const startText = "'" + Utilities.formatDate(start, Session.getScriptTimeZone(), DATE_TIME_FORMAT);
+    const endText = "'" + Utilities.formatDate(end, Session.getScriptTimeZone(), DATE_TIME_FORMAT);
+    const createdAtText = "'" + Utilities.formatDate(now, Session.getScriptTimeZone(), DATE_TIME_FORMAT);
+
+    sheet.appendRow([
+      temporaryQrId,
+      label,
+      token,
+      qrCodeUrl,
+      qrImageUrl,
+      startText,
+      endText,
+      allowedAction,
+      TEMP_QR_STATUS_ACTIVE,
+      createdBy,
+      createdAtText,
+      notes,
+      ''
+    ]);
+
+    return {
+      success: true,
+      message: 'Temporary staff QR code generated successfully.',
+      temporaryQrId: temporaryQrId,
+      label: label,
+      token: token,
+      qrCodeUrl: qrCodeUrl,
+      qrImageUrl: qrImageUrl,
+      startDateTime: String(startText).replace(/^'/, ''),
+      endDateTime: String(endText).replace(/^'/, ''),
+      allowedAction: allowedAction,
+      status: TEMP_QR_STATUS_ACTIVE
+    };
+  } catch (error) {
+    return { success: false, message: 'Error: ' + error.message };
+  }
+}
+
+function getTemporaryQRCodes() {
+  try {
+    const sheet = ensureTemporaryQRCodesSheet();
+    const data = sheet.getDataRange().getValues();
+    const now = new Date();
+    const codes = [];
+
+    for (let i = 1; i < data.length; i++) {
+      if (!data[i][0]) continue;
+
+      const start = parseStoredDateTime(data[i][5]);
+      const end = parseStoredDateTime(data[i][6]);
+      const storedStatus = String(data[i][8] || '').trim() || TEMP_QR_STATUS_ACTIVE;
+      let effectiveStatus = storedStatus;
+
+      if (storedStatus === TEMP_QR_STATUS_ACTIVE && end && now > end) {
+        effectiveStatus = 'Expired';
+      } else if (storedStatus === TEMP_QR_STATUS_ACTIVE && start && now < start) {
+        effectiveStatus = 'Scheduled';
+      }
+
+      codes.push({
+        temporaryQrId: data[i][0],
+        label: data[i][1],
+        token: data[i][2],
+        qrCodeUrl: data[i][3],
+        qrImageUrl: data[i][4],
+        startDateTime: formatStoredDateTime(data[i][5]),
+        endDateTime: formatStoredDateTime(data[i][6]),
+        allowedAction: normalizeTemporaryQRAction(data[i][7]),
+        status: storedStatus,
+        effectiveStatus: effectiveStatus,
+        createdBy: data[i][9],
+        createdAt: formatStoredDateTime(data[i][10]),
+        notes: data[i][11] || '',
+        revokedAt: formatStoredDateTime(data[i][12])
+      });
+    }
+
+    codes.sort((a, b) => new Date(b.createdAt.replace(' ', 'T')) - new Date(a.createdAt.replace(' ', 'T')));
+    return { success: true, codes: codes };
+  } catch (error) {
+    return { success: false, message: 'Error: ' + error.message, codes: [] };
+  }
+}
+
+function revokeTemporaryQRCode(temporaryQrId) {
+  try {
+    const safeId = String(temporaryQrId || '').trim();
+    if (!safeId) {
+      return { success: false, message: 'Temporary QR ID is required.' };
+    }
+
+    const sheet = ensureTemporaryQRCodesSheet();
+    const data = sheet.getDataRange().getValues();
+    const revokedAt = "'" + Utilities.formatDate(new Date(), Session.getScriptTimeZone(), DATE_TIME_FORMAT);
+
+    for (let i = 1; i < data.length; i++) {
+      if (String(data[i][0]).trim() === safeId) {
+        sheet.getRange(i + 1, 9).setValue(TEMP_QR_STATUS_REVOKED);
+        sheet.getRange(i + 1, 13).setValue(revokedAt);
+        return { success: true, message: 'Temporary QR code revoked successfully.' };
+      }
+    }
+
+    return { success: false, message: 'Temporary QR code not found.' };
+  } catch (error) {
+    return { success: false, message: 'Error: ' + error.message };
+  }
+}
+
+// ============================================
 // GUEST CHECK-IN/CHECK-OUT FUNCTIONS
 // ============================================
 
@@ -2420,7 +2703,7 @@ function verifyGuestAndGetStatus(firstName, lastName) {
  */
 function guestCheckIn(firstName, lastName, qrToken) {
   try {
-    const qrValidation = validateQRToken(qrToken);
+    const qrValidation = validateQRToken(qrToken, 'Guest Check-In');
     if (!qrValidation.valid) {
       return { success: false, message: qrValidation.message };
     }
@@ -2876,11 +3159,13 @@ function getBackdoorConsoleData() {
   try {
     const staffResult = getAllStaff();
     const schedulesResult = getBackdoorSchedules();
+    const temporaryQRResult = getTemporaryQRCodes();
 
     return {
       success: true,
       staff: staffResult.success ? staffResult.staff : [],
       schedules: schedulesResult.success ? schedulesResult.schedules : [],
+      temporaryQRCodes: temporaryQRResult.success ? temporaryQRResult.codes : [],
       timezone: Session.getScriptTimeZone(),
       now: Utilities.formatDate(new Date(), Session.getScriptTimeZone(), DATE_TIME_FORMAT)
     };
